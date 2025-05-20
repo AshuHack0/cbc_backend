@@ -54,7 +54,7 @@ export const createPaymentIntent = async (req, res) => {
                 facility_id: facility_id,
                 start_time: start_time,
                 end_time: end_time,
-                price_summary: price_summary,
+                price_summary: JSON.stringify(price_summary),
                 date: date
             }
         });
@@ -127,7 +127,7 @@ export const handleWebhook = async (req, res) => {
                         paymentIntent.metadata.facility_id,
                         paymentIntent.metadata.start_time,
                         paymentIntent.metadata.end_time,
-                        JSON.stringify(paymentIntent.metadata.price_summary),
+                        paymentIntent.metadata.price_summary,
                         paymentIntent.metadata.date
                     ]);
 
