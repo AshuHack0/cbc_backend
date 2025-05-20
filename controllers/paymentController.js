@@ -43,6 +43,15 @@ export const createPaymentIntent = async (req, res) => {
 
         logger.info(`Payment intent created successfully for user: ${_id}`);
 
+        // Insert initial payment record
+        await executeQuery2(SQL_QUERIES.CREATE_PAYMENT_RECORD, [
+            _id,
+            'pending',
+            amount,
+            new Date(),
+            paymentIntent.id
+        ]);
+
         res.status(200).json({
             success: true,
             message: RESPONSE_MESSAGES.PAYMENT_INTENT_CREATED,
