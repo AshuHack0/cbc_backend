@@ -73,13 +73,14 @@ export const handleWebhook = async (req, res) => {
 
         // Log the event type for debugging
         logger.info(`Processing webhook event: ${event.type}`);
-
+        console.log("event", event);
         // Handle the event
         switch (event.type) {
             case 'payment_intent.succeeded':
                 const paymentIntent = event.data.object;
                 try {
-                    // Update payment status in database
+                    // Update payment status in database 
+                    console.log("paymentIntent", paymentIntent);
                     await executeQuery2(SQL_QUERIES.UPDATE_PAYMENT_STATUS, [
                         'completed',
                         paymentIntent.amount / 100,
