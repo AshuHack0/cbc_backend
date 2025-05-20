@@ -17,7 +17,7 @@ export const createPaymentIntent = async (req, res) => {
             });
         }
 
-        const { amount, currency = 'inr', facility_id, start_time, end_time, date } = req.body;
+        const { amount, currency = 'usd', facility_id, start_time, end_time, date } = req.body;
 
         // Validate amount
         if (!amount || amount <= 0) {
