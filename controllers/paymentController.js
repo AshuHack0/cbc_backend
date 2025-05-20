@@ -17,7 +17,7 @@ export const createPaymentIntent = async (req, res) => {
             });
         }
 
-        const { amount, currency = 'inr' } = req.body;
+        const { amount, currency = 'inr', facility_id, start_time, end_time, price_summary, date } = req.body;
 
         // Validate amount
         if (!amount || amount <= 0) {
@@ -33,7 +33,12 @@ export const createPaymentIntent = async (req, res) => {
             amount: Math.round(amount * 100), // Convert to smallest currency unit (paise for INR)
             currency: currency,
             metadata: {
-                user_id: _id
+                user_id: _id,
+                facility_id: facility_id,
+                start_time: start_time,
+                end_time: end_time,
+                price_summary: price_summary,
+                date: date
             },
             automatic_payment_methods: {
                 enabled: true,
@@ -45,7 +50,12 @@ export const createPaymentIntent = async (req, res) => {
         await stripe.paymentIntents.update(paymentIntent.id, {
             metadata: {
                 user_id: _id,
-                order_id: paymentIntent.id
+                order_id: paymentIntent.id,
+                facility_id: facility_id,
+                start_time: start_time,
+                end_time: end_time,
+                price_summary: price_summary,
+                date: date
             }
         });
 
@@ -104,7 +114,8 @@ export const handleWebhook = async (req, res) => {
                         new Date(),
                         paymentIntent.id,
                         paymentIntent.id, // Using payment intent ID as order ID
-                        paymentIntent.metadata.user_id
+                        paymentIntent.metadata.user_id,
+                        paymentIntent.metadata.date
                     ]);
 
                     // Create booking record
@@ -112,7 +123,12 @@ export const handleWebhook = async (req, res) => {
                         paymentIntent.metadata.user_id,
                         paymentIntent.id, // Using payment intent ID as order ID
                         new Date(),
-                        'confirmed'
+                        'confirmed',
+                        paymentIntent.metadata.facility_id,
+                        paymentIntent.metadata.start_time,
+                        paymentIntent.metadata.end_time,
+                        paymentIntent.metadata.price_summary,
+                        paymentIntent.metadata.date
                     ]);
 
                     logger.info(`Payment succeeded for order: ${paymentIntent.id}`);

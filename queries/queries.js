@@ -38,8 +38,8 @@ export const SQL_QUERIES = {
     LIMIT 1
   `,
   CREATE_BOOKING_RECORD: `
-    INSERT INTO bookings (user_id, order_id, booking_date, status)
-    VALUES (?, ?, ?, ?)
+    INSERT INTO bookings (user_id, order_id, booking_date, status, facility_id, start_time, end_time, price_summary, booked_date)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
   GET_BOOKING_DETAILS: `
     SELECT b.*, p.amount, p.payment_date, p.status as payment_status
