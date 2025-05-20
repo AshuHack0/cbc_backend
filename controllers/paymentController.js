@@ -127,7 +127,7 @@ export const handleWebhook = async (req, res) => {
                         paymentIntent.metadata.facility_id,
                         paymentIntent.metadata.start_time,
                         paymentIntent.metadata.end_time,
-                        paymentIntent.metadata.price_summary,
+                        JSON.stringify(paymentIntent.metadata.price_summary),
                         paymentIntent.metadata.date
                     ]);
 
