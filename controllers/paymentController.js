@@ -41,6 +41,14 @@ export const createPaymentIntent = async (req, res) => {
             }
         });
 
+        // Update metadata with payment intent ID after creation
+        await stripe.paymentIntents.update(paymentIntent.id, {
+            metadata: {
+                user_id: _id,
+                order_id: paymentIntent.id
+            }
+        });
+
         logger.info(`Payment intent created successfully for user: ${_id}`);
 
         // Insert initial payment record
@@ -95,19 +103,19 @@ export const handleWebhook = async (req, res) => {
                         paymentIntent.amount / 100,
                         new Date(),
                         paymentIntent.id,
-                        paymentIntent.metadata.order_id,
+                        paymentIntent.id, // Using payment intent ID as order ID
                         paymentIntent.metadata.user_id
                     ]);
 
                     // Create booking record
                     await executeQuery2(SQL_QUERIES.CREATE_BOOKING_RECORD, [
                         paymentIntent.metadata.user_id,
-                        paymentIntent.metadata.order_id,
+                        paymentIntent.id, // Using payment intent ID as order ID
                         new Date(),
                         'confirmed'
                     ]);
 
-                    logger.info(`Payment succeeded for order: ${paymentIntent.metadata.order_id}`);
+                    logger.info(`Payment succeeded for order: ${paymentIntent.id}`);
                 } catch (dbError) {
                     logger.error(`Database error processing successful payment: ${dbError.message}`);
                     console.log("dbError", dbError);
@@ -124,11 +132,11 @@ export const handleWebhook = async (req, res) => {
                         failedPayment.amount / 100,
                         new Date(),
                         failedPayment.id,
-                        failedPayment.metadata.order_id,
+                        failedPayment.id, // Using payment intent ID as order ID
                         failedPayment.metadata.user_id
                     ]);
 
-                    logger.error(`Payment failed for order: ${failedPayment.metadata.order_id}`);
+                    logger.error(`Payment failed for order: ${failedPayment.id}`);
                 } catch (dbError) {
                     logger.error(`Database error processing failed payment: ${dbError.message}`);
                     throw dbError;
@@ -143,7 +151,7 @@ export const handleWebhook = async (req, res) => {
                         processingPayment.amount / 100,
                         new Date(),
                         processingPayment.id,
-                        processingPayment.metadata.order_id,
+                        processingPayment.id, // Using payment intent ID as order ID
                         processingPayment.metadata.user_id
                     ]);
                 } catch (dbError) {
@@ -160,7 +168,7 @@ export const handleWebhook = async (req, res) => {
                         canceledPayment.amount / 100,
                         new Date(),
                         canceledPayment.id,
-                        canceledPayment.metadata.order_id,
+                        canceledPayment.id, // Using payment intent ID as order ID
                         canceledPayment.metadata.user_id
                     ]);
                 } catch (dbError) {
