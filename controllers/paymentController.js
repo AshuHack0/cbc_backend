@@ -110,6 +110,7 @@ export const handleWebhook = async (req, res) => {
                     logger.info(`Payment succeeded for order: ${paymentIntent.metadata.order_id}`);
                 } catch (dbError) {
                     logger.error(`Database error processing successful payment: ${dbError.message}`);
+                    console.log("dbError", dbError);
                     throw dbError;
                 }
                 break;
@@ -196,7 +197,7 @@ export const handleWebhook = async (req, res) => {
 export const getPaymentStatus = async (req, res) => {
     const { _id } = req.user;
     const { orderId } = req.query;
-    
+    console.log("orderId", orderId); 
     try {
         // Get payment status with order ID for more precise tracking
         const [payment] = await executeQuery2(
@@ -219,7 +220,7 @@ export const getPaymentStatus = async (req, res) => {
                 [orderId]
             );
         }
-
+        console.log("payment", payment);
         res.status(200).json({
             success: true,
             message: RESPONSE_MESSAGES.PAYMENT_STATUS_RETRIEVED,
@@ -234,7 +235,8 @@ export const getPaymentStatus = async (req, res) => {
         });
 
     } catch (error) {
-        logger.error(LOG_MESSAGES.ERROR_IN_GET_PAYMENT_STATUS(error));
+        logger.error(LOG_MESSAGES.ERROR_IN_GET_PAYMENT_STATUS(error)); 
+        console.log("error", error);
         res.status(500).json({
             success: false,
             message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
