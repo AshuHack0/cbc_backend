@@ -145,19 +145,49 @@ export const SPORTS_QUERIES = {
 
 
 export const BOOKING_QUERIES = {
-  SELECT_BOOK_DETAILS: `
-    SELECT 
-      bookings.*, 
-      payments.status AS payment_status, 
-      payments.amount, 
-      payments.payment_date, 
-      payments.transaction_id,
-      facilities.availability_status, 
-      facilities.img_src, 
-      facilities.name 
-    FROM bookings 
-    INNER JOIN payments ON bookings.order_id = payments.order_id
-    LEFT JOIN facilities ON bookings.facility_id = facilities.id 
-    WHERE bookings.user_id = ?
-  `,
+  SELECT_SUCCESSFUL_BOOKINGS: `
+  SELECT bookings.*, payments.status AS payment_status, payments.amount, payments.payment_date, facilities.name, facilities.img_src, facilities.availability_status
+  FROM bookings
+  INNER JOIN payments ON bookings.order_id = payments.transaction_id
+  LEFT JOIN facilities ON bookings.facility_id = facilities.id
+  WHERE bookings.user_id = ? AND payments.status = 'completed'
+`,
+SELECT_FAILED_PAYMENTS_WITHOUT_BOOKINGS: `
+  SELECT payments.*
+  FROM payments
+  LEFT JOIN bookings ON payments.transaction_id = bookings.order_id
+  WHERE payments.user_id = ? AND bookings.id IS NULL
+`,
+  SELECT_PAYMENT_DETAILS_IF_NO_BOOKING: `
+  SELECT * FROM payments WHERE user_id = ?
+`,
+
+SELECT_PAYMENTS_WITH_BOOKINGS: `
+SELECT
+  payments.id AS payment_id,
+  payments.user_id,
+  payments.order_id,
+  payments.status AS payment_status,
+  payments.amount,
+  payments.payment_date,
+  payments.transaction_id,
+  bookings.id AS booking_id,
+  bookings.facility_id,
+  bookings.booking_date,
+  bookings.booked_date,
+  bookings.start_time,
+  bookings.end_time,
+  bookings.status AS booking_status,
+  facilities.name AS facility_name,
+  facilities.img_src,
+  facilities.availability_status
+FROM payments
+LEFT JOIN bookings ON payments.transaction_id = bookings.order_id AND bookings.user_id = payments.user_id
+LEFT JOIN facilities ON bookings.facility_id = facilities.id
+WHERE payments.user_id = ?
+ORDER BY payments.payment_date DESC;
+
+`,
+
+
 };
