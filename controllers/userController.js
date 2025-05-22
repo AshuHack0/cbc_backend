@@ -20,14 +20,21 @@ export const getUserController = async (req, res) => {
 export const getBookDetailsController = async (req, res) => {
     const { _id } = req.user;
     try {
-        const [result] = await executeQuery2(BOOKING_QUERIES.SELECT_BOOK_DETAILS, [_id]);
-        if (result) {
-            res.status(200).json({ message: RESPONSE_MESSAGES.BOOK_DETAILS_RETRIEVED_SUCCESSFULLY, book: result });
+        const result = await executeQuery2(BOOKING_QUERIES.SELECT_BOOK_DETAILS, [_id]);
+        if (result.length > 0) {
+            res.status(200).json({
+                message: RESPONSE_MESSAGES.BOOK_DETAILS_RETRIEVED_SUCCESSFULLY,
+                book: result,
+            });
         } else {
             res.status(404).json({ message: RESPONSE_MESSAGES.BOOK_NOT_FOUND });
-        } 
+        }
     } catch (error) {
         logger.error(LOG_MESSAGES.ERROR_IN_GET_BOOK_DETAILS(error));
-        res.status(500).json({ message: RESPONSE_MESSAGES.BOOK_DETAILS_RETRIEVAL_FAILED, error });
+        res.status(500).json({
+            message: RESPONSE_MESSAGES.BOOK_DETAILS_RETRIEVAL_FAILED,
+            error,
+        });
     }
 };
+

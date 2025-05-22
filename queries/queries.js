@@ -145,5 +145,19 @@ export const SPORTS_QUERIES = {
 
 
 export const BOOKING_QUERIES = {
-  SELECT_BOOK_DETAILS: `SELECT * FROM bookings INNER JOIN payments ON bookings.user_id = payments.user_id LEFT JOIN facilities ON bookings.facility_id = facilities.id WHERE bookings.user_id = ? `,
+  SELECT_BOOK_DETAILS: `
+    SELECT 
+      bookings.*, 
+      payments.status AS payment_status, 
+      payments.amount, 
+      payments.payment_date, 
+      payments.transaction_id,
+      facilities.availability_status, 
+      facilities.img_src, 
+      facilities.name 
+    FROM bookings 
+    INNER JOIN payments ON bookings.order_id = payments.order_id
+    LEFT JOIN facilities ON bookings.facility_id = facilities.id 
+    WHERE bookings.user_id = ?
+  `,
 };
