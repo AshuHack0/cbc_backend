@@ -48,7 +48,7 @@ export const SQL_QUERIES = {
     WHERE b.order_id = ?
   `,
   SELECT_USER_DETAILS: `
-    SELECT id, email, firstname, lastname, phone
+    SELECT *
     FROM users
     WHERE id = ?
   `
@@ -141,4 +141,9 @@ export const SPORTS_QUERIES = {
       LEFT JOIN equipment_rentals er ON f.id = er.facility_id
   `,
   SELECT_ALL_FACILITIES: `SELECT * FROM facilities`,
+};
+
+
+export const BOOKING_QUERIES = {
+  SELECT_BOOK_DETAILS: `SELECT * FROM bookings INNER JOIN payments ON bookings.user_id = payments.user_id LEFT JOIN facilities ON bookings.facility_id = facilities.id WHERE bookings.user_id = ? `,
 };

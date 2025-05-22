@@ -3,6 +3,8 @@ import {  sendOtpController, verifyOtpController } from '../controllers/authCont
 
 const router = express.Router();
 
+
+
 // Send OTP route
 router.post('/send-otp', sendOtpController);
 
