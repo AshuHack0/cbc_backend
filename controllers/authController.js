@@ -184,3 +184,116 @@ export const verifyOtpController = async (req, res) => {
     });
   }
 };
+
+export const resendOtpController = async (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    // Input validation
+    if (!phone) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.PHONE_REQUIRED,
+      });
+    }
+
+    // Check if user exists
+    const users = await executeQuery2(SQL_QUERIES.SELECT_USER, [phone]);
+    if (!users || users.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.USER_NOT_FOUND,
+      });
+    }
+
+    // Check for recent OTP requests (rate limiting)
+    const recentOtpRequests = await executeQuery2(SQL_QUERIES.SELECT_RECENT_OTP, [phone]);
+    if (recentOtpRequests && recentOtpRequests.length > 0) {
+      const lastRequest = new Date(recentOtpRequests[0].created_at);
+      const timeDiff = (new Date() - lastRequest) / 1000; // in seconds
+      
+      if (timeDiff < 60) { // 1 minute cooldown
+        return res.status(429).json({
+          success: false,
+          message: RESPONSE_MESSAGES.OTP_COOLDOWN,
+          retryAfter: Math.ceil(60 - timeDiff)
+        });
+      }
+    }
+
+    // Generate new OTP
+    const otp = generateOTP();
+    const expiryTime = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes expiry
+
+    // Start database transaction
+    await executeQuery2('START TRANSACTION');
+
+    try {
+      // Delete any existing OTPs for this phone
+      await executeQuery2(SQL_QUERIES.DELETE_RECENT_OTP, [phone]);
+
+      // Insert new OTP
+      await executeQuery2(SQL_QUERIES.INSERT_OTP, [
+        phone,
+        otp,
+        expiryTime,
+      ]);
+
+      // Send OTP via Twilio
+      await client.messages.create({
+        body: LOG_MESSAGES.OTP_MESSAGE(otp),
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: phone,
+      });
+
+      // Commit transaction
+      await executeQuery2('COMMIT');
+
+      // Log success
+      logger.info(LOG_MESSAGES.OTP_SENT_SUCCESS(phone), {
+        phone,
+        otpExpiry: expiryTime,
+        requestId: req.id
+      });
+
+      // Send success response
+      return res.status(200).json({
+        success: true,
+        message: LOG_MESSAGES.OTP_SENT_SUCCESS(phone),
+        data: {
+          expiryTime: expiryTime,
+          retryAfter: 60 // 1 minute cooldown
+        }
+      });
+
+    } catch (error) {
+      // Rollback transaction on error
+      await executeQuery2('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    // Log error with context
+    logger.error(LOG_MESSAGES.ERROR_IN_RESEND_OTP(error), {
+      phone: req.body.phone,
+      error: error.message,
+      stack: error.stack,
+      requestId: req.id
+    });
+
+    // Handle specific error types
+    if (error.code === 'TWILIO_ERROR') {
+      return res.status(503).json({
+        success: false,
+        message: RESPONSE_MESSAGES.SMS_SERVICE_ERROR
+      });
+    }
+
+    // Generic error response
+    return res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+};

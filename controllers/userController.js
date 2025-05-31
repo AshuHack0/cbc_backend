@@ -19,6 +19,7 @@ export const getUserController = async (req, res) => {
  
 export const getBookDetailsController = async (req, res) => {
     const { _id } = req.user;
+    
     try {
       const results = await executeQuery2(BOOKING_QUERIES.SELECT_PAYMENTS_WITH_BOOKINGS, [_id]);
   

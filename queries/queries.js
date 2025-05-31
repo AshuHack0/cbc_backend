@@ -7,6 +7,8 @@ export const SQL_QUERIES = {
   SELECT_USER: "SELECT * FROM users WHERE phone = ?",
   INSERT_USER: "INSERT INTO users (phone) VALUES (?)",
   SELECT_USER_DETAILS: "SELECT * FROM users WHERE id = ?",
+  SELECT_RECENT_OTP: "SELECT * FROM otp_logs WHERE phone = ? ORDER BY created_at DESC LIMIT 1", 
+  DELETE_RECENT_OTP: "DELETE FROM otp_logs WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
   UPDATE_PAYMENT_STATUS: `
     INSERT INTO payments (user_id, status, amount, payment_date, transaction_id)
     VALUES (?, ?, ?, ?, ?)
