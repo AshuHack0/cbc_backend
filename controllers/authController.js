@@ -162,10 +162,7 @@ export const verifyOtpController = async (req, res) => {
       res.status(200).json({
         success: true,
         message: RESPONSE_MESSAGES.OTP_VERIFIED_SUCCESS,
-        user: {
-          id: userId,
-          phone: phone,
-        },
+        user: users,
         token,
       });
     } else {
