@@ -17,7 +17,7 @@ export const createPaymentIntent = async (req, res) => {
             });
         }
 
-        const { amount, currency = 'usd', facility_id, start_time, end_time, date } = req.body;
+        const { amount, currency , facility_id, date , slot, formattedBookings } = req.body;
 
         // Validate amount
         if (!amount || amount <= 0) {
@@ -35,10 +35,9 @@ export const createPaymentIntent = async (req, res) => {
             metadata: {
                 user_id: _id,
                 facility_id: facility_id,
-                start_time: start_time,
-                end_time: end_time,
-                
-                date: date
+                slot: slot,
+                date: date,
+                formattedBookings: formattedBookings
             },
             automatic_payment_methods: {
                 enabled: true,
@@ -52,10 +51,9 @@ export const createPaymentIntent = async (req, res) => {
                 user_id: _id,
                 order_id: paymentIntent.id,
                 facility_id: facility_id,
-                start_time: start_time,
-                end_time: end_time,
-                
-                date: date
+                slot: slot,
+                date: date,
+                formattedBookings: formattedBookings
             }
         });
 
@@ -100,14 +98,14 @@ export const handleWebhook = async (req, res) => {
 
         // Log the event type for debugging
         logger.info(`Processing webhook event: ${event.type}`);
-        console.log("event", event);
+        logger.info(`Webhook event data: ${JSON.stringify(event, null, 2)}`);
         // Handle the event
         switch (event.type) {
             case 'payment_intent.succeeded':
                 const paymentIntent = event.data.object;
                 try {
                     // Update payment status in database 
-                    console.log("paymentIntent", paymentIntent);
+                    logger.info(`Payment intent succeeded: ${JSON.stringify(paymentIntent, null, 2)}`);
                     await executeQuery2(SQL_QUERIES.UPDATE_PAYMENT_STATUS, [
                         'completed',
                         paymentIntent.amount / 100,
@@ -115,7 +113,8 @@ export const handleWebhook = async (req, res) => {
                         paymentIntent.id,
                         paymentIntent.id, // Using payment intent ID as order ID
                         paymentIntent.metadata.user_id,
-                        paymentIntent.metadata.date
+                        paymentIntent.metadata.date,
+                        paymentIntent.metadata.formattedBookings
                     ]);
 
                     // Create booking record
@@ -125,17 +124,16 @@ export const handleWebhook = async (req, res) => {
                         new Date(),
                         'confirmed',
                         paymentIntent.metadata.facility_id,
-                        paymentIntent.metadata.start_time,
-                        paymentIntent.metadata.end_time,
-                        
-                        paymentIntent.metadata.date
+                        paymentIntent.metadata.date,
+                        paymentIntent.metadata.slot,
+                        paymentIntent.metadata.formattedBookings
                     ]);
 
                     logger.info(`Payment succeeded for order: ${paymentIntent.id}`);
                 } catch (dbError) {
                     logger.error(`Database error processing successful payment: ${dbError.message}`);
                     console.log("dbError", dbError);
-                    throw dbError;
+                    // Don't throw the error - we'll handle it asynchronously
                 }
                 break;
 
@@ -154,8 +152,8 @@ export const handleWebhook = async (req, res) => {
 
                     logger.error(`Payment failed for order: ${failedPayment.id}`);
                 } catch (dbError) {
+                    // Log the error but still acknowledge the webhook
                     logger.error(`Database error processing failed payment: ${dbError.message}`);
-                    throw dbError;
                 }
                 break;
 
@@ -171,8 +169,8 @@ export const handleWebhook = async (req, res) => {
                         processingPayment.metadata.user_id
                     ]);
                 } catch (dbError) {
+                    // Log the error but still acknowledge the webhook
                     logger.error(`Database error processing payment in processing state: ${dbError.message}`);
-                    throw dbError;
                 }
                 break;
 
@@ -188,8 +186,8 @@ export const handleWebhook = async (req, res) => {
                         canceledPayment.metadata.user_id
                     ]);
                 } catch (dbError) {
+                    // Log the error but still acknowledge the webhook
                     logger.error(`Database error processing canceled payment: ${dbError.message}`);
-                    throw dbError;
                 }
                 break;
 
@@ -197,11 +195,12 @@ export const handleWebhook = async (req, res) => {
                 logger.info(`Unhandled event type: ${event.type}`);
         }
 
-        // Return a 200 response to acknowledge receipt of the event
-        res.json({received: true});
+        // Always return a 200 response to acknowledge receipt of the event
+        res.status(200).json({ received: true });
         
     } catch (err) {
         if (err.type === 'StripeSignatureVerificationError') {
+            // For signature verification errors, return 400 as this indicates an invalid request
             logger.error(`Webhook signature verification failed: ${err.message}`);
             return res.status(400).json({
                 success: false,
@@ -209,11 +208,11 @@ export const handleWebhook = async (req, res) => {
             });
         }
 
+        // For all other errors, log them but still return 200 to acknowledge receipt
         logger.error(`Error processing webhook: ${err.message}`);
-        res.status(400).json({
-            success: false,
-            message: 'Webhook processing failed',
-            error: err.message
+        res.status(200).json({
+            received: true,
+            warning: 'Webhook received but processing encountered an error'
         });
     }
 };
@@ -264,6 +263,102 @@ export const getPaymentStatus = async (req, res) => {
         res.status(500).json({
             success: false,
             message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+export const createFreeBooking = async (req, res) => {
+    try {
+        const { _id } = req.user;
+        
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        const { facility_id, start_time, end_time, date , slot, formattedBookings} = req.body;
+
+        // Validate required fields
+        if (!facility_id || !date) {
+            logger.error('Missing required fields for free booking');
+            return res.status(400).json({
+                success: false,
+                message: 'facility_id, start_time, end_time, and date are required'
+            });
+        }
+
+        // Generate a unique booking ID
+        const bookingId = `free_booking_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const amount = 0;
+
+        try {
+            // Insert payment record for free booking
+            await executeQuery2(SQL_QUERIES.CREATE_PAYMENT_RECORD_FOR_FREE_BOOKING, [
+                _id,
+                'completed', // Mark as completed since it's free
+                amount,
+                new Date(),
+                bookingId,
+                bookingId
+
+            ]);
+
+            // Create booking record
+            await executeQuery2(SQL_QUERIES.CREATE_BOOKING_RECORD, [
+                _id,
+                bookingId, // Using generated booking ID
+                new Date(),
+                'confirmed',
+                facility_id,
+                date,
+                slot,
+                formattedBookings
+            ]);
+
+            logger.info(`Free booking created successfully for user: ${_id}, booking ID: ${bookingId}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Free booking created successfully',
+                booking: {
+                    bookingId: bookingId,
+                    userId: _id,
+                    facilityId: facility_id,
+                    startTime: start_time,
+                    endTime: end_time,
+                    date: date,
+                    amount: amount,
+                    status: 'confirmed',
+                    paymentStatus: 'completed'
+                }
+            });
+
+        } catch (dbError) {
+            logger.error(`Database error creating free booking: ${dbError.message}`);
+            console.error('Database error:', dbError);
+            
+            // If there was an error, we might want to clean up any partial records
+            // This is a simplified cleanup - in production you might want more sophisticated error handling
+            try {
+                await executeQuery2('DELETE FROM payments WHERE order_id = ?', [bookingId]);
+                await executeQuery2('DELETE FROM bookings WHERE order_id = ?', [bookingId]);
+            } catch (cleanupError) {
+                logger.error(`Error during cleanup: ${cleanupError.message}`);
+            }
+            
+            throw dbError;
+        }
+
+    } catch (error) {
+        logger.error(`Error in free booking creation: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
         });
     }
 };

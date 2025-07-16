@@ -7,8 +7,6 @@ export const SQL_QUERIES = {
   SELECT_USER: "SELECT * FROM users WHERE phone = ?",
   INSERT_USER: "INSERT INTO users (phone) VALUES (?)",
   SELECT_USER_DETAILS: "SELECT * FROM users WHERE id = ?",
-  SELECT_RECENT_OTP: "SELECT * FROM otp_logs WHERE phone = ? ORDER BY created_at DESC LIMIT 1", 
-  DELETE_RECENT_OTP: "DELETE FROM otp_logs WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
   UPDATE_PAYMENT_STATUS: `
     INSERT INTO payments (user_id, status, amount, payment_date, transaction_id)
     VALUES (?, ?, ?, ?, ?)
@@ -23,6 +21,10 @@ export const SQL_QUERIES = {
     INSERT INTO payments (user_id, status, amount, payment_date, order_id)
     VALUES (?, ?, ?, ?, ?)
   `,
+  CREATE_PAYMENT_RECORD_FOR_FREE_BOOKING: `
+  INSERT INTO payments (user_id, status, amount, payment_date, order_id, transaction_id)
+  VALUES (?, ?, ?, ?, ?, ?)
+`,
   UPDATE_PAYMENT_STATUS: `
     UPDATE payments 
     SET status = ?, 
@@ -40,7 +42,7 @@ export const SQL_QUERIES = {
     LIMIT 1
   `,
   CREATE_BOOKING_RECORD: `
-    INSERT INTO bookings (user_id, order_id, booking_date, status, facility_id, start_time, end_time, booked_date)
+    INSERT INTO bookings (user_id, order_id, booking_date, status, facility_id, booked_date, booked_slot, boking_time_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `,
   GET_BOOKING_DETAILS: `
@@ -189,6 +191,31 @@ LEFT JOIN facilities ON bookings.facility_id = facilities.id
 WHERE payments.user_id = ?
 ORDER BY payments.payment_date DESC;
 
+`,
+
+SELECT_BOOKINGS_BY_DATE_AND_FACILITY: `
+SELECT
+  b.id AS booking_id,
+  b.user_id,
+  b.order_id,
+  b.booking_date,
+  b.booked_date,
+  b.start_time,
+  b.end_time,
+  b.status AS booking_status,
+  b.facility_id,
+  p.amount,
+  p.payment_date,
+  p.status AS payment_status,
+  p.transaction_id,
+  u.phone AS user_phone,
+  f.name AS facility_name
+FROM bookings b
+LEFT JOIN payments p ON b.order_id = p.order_id
+LEFT JOIN users u ON b.user_id = u.id
+LEFT JOIN facilities f ON b.facility_id = f.id
+WHERE DATE(b.booked_date) = ? AND b.facility_id = ? AND b.status IN ('confirmed', 'active', 'booked')
+ORDER BY b.start_time ASC;
 `,
 
 
