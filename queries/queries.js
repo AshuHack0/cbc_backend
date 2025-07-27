@@ -7,6 +7,20 @@ export const SQL_QUERIES = {
   SELECT_USER: "SELECT * FROM users WHERE phone = ?",
   INSERT_USER: "INSERT INTO users (phone) VALUES (?)",
   SELECT_USER_DETAILS: "SELECT * FROM users WHERE id = ?",
+  
+  // Member-related queries
+  SELECT_MEMBER_BY_ID: "SELECT * FROM Member WHERE id = ?",
+  SELECT_FAMILY_MEMBERS: "SELECT * FROM FamilyMember WHERE memberId = ?",
+  UPDATE_MEMBER_PAYMENT: `
+    UPDATE Member SET 
+      paymentStatus = 'paid',
+      stripeCustomerId = ?,
+      stripeSubscriptionId = ?
+    WHERE id = ?
+  `,
+  UPDATE_MEMBER_MEMBERSHIP_CODE: "UPDATE Member SET membershipCode = ? WHERE id = ?",
+  UPDATE_FAMILY_MEMBER_MEMBERSHIP_CODE: "UPDATE FamilyMember SET membershipCode = ? WHERE id = ?",
+  
   UPDATE_PAYMENT_STATUS: `
     INSERT INTO payments (user_id, status, amount, payment_date, transaction_id)
     VALUES (?, ?, ?, ?, ?)
