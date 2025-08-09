@@ -1,9 +1,12 @@
 import express from 'express';
-import {  resendOtpController, sendOtpController, verifyOtpController } from '../controllers/authController.js';
+import {  loginController, resendOtpController, sendOtpController, verifyOtpController } from '../controllers/authController.js';
 
 const router = express.Router();
 
 
+
+
+router.post('/login', loginController);
 
 // Send OTP route
 router.post('/send-otp', sendOtpController);

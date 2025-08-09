@@ -294,3 +294,78 @@ export const resendOtpController = async (req, res) => {
     });
   }
 };
+
+
+export const loginController = async (req, res) => {
+  try {
+    const { email, password } = req.body; 
+
+    // check is email and password are provided
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.EMAIL_AND_PASSWORD_REQUIRED,
+      });
+    }
+
+    //check if email is valid
+    if (!email.includes('@') || !email.includes('.')) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.INVALID_EMAIL,
+      });
+    }
+
+    //check if password is valid
+    if (!password) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.PASSWORD_REQUIRED,
+      });
+    }
+
+
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.INVALID_PASSWORD,
+      });
+    }
+
+    //check if user exists
+    const users = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_EMAIL, [email]);
+    if (!users || users.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.USER_NOT_FOUND, 
+      });
+    }
+    //check if password is correct
+    if (users[0].password !== password) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.INVALID_PASSWORD,
+      });
+    } 
+
+    //generate jwt token
+    const token = JWT.sign({ _id: users[0].id }, process.env.JWT_SECRET, {
+      expiresIn: "30d",
+    });
+
+    res.status(200).json({
+      success: true,
+      message: RESPONSE_MESSAGES.LOGIN_SUCCESS,
+      user: users,
+      token,
+    });
+  
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_LOGIN(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+};

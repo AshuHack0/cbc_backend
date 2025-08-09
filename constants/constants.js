@@ -21,7 +21,8 @@ export const LOG_MESSAGES = {
     ERROR_IN_WEBHOOK: (error) => `Error processing webhook: ${error.message}`,
     ERROR_IN_GET_PAYMENT_STATUS: (error) => `Error getting payment status: ${error.message}`,
     ERROR_IN_GET_BOOK_DETAILS: (error) => `Error in getBookDetailsController: ${error.message}`,
-    ERROR_IN_RESEND_OTP: (error) => `Error in resendOtpController: ${error.message}`,
+    ERROR_IN_RESEND_OTP: (error) => `Error in resendOtpController: ${error.message}`, 
+    ERROR_IN_LOGIN: (error) => `Error in loginController: ${error.message}`, 
 };
 
 // Constants for response messages
@@ -60,5 +61,10 @@ export const RESPONSE_MESSAGES = {
     BOOK_NOT_FOUND: "Book not found",
     OTP_COOLDOWN: "Please wait before requesting a new OTP",
     OTP_RESENT_SUCCESS: "New OTP resent successfully",
-    OTP_RESENT_FAILED: "Failed to resend OTP",
+    OTP_RESENT_FAILED: "Failed to resend OTP", 
+    INVALID_EMAIL: "Invalid email",
+    PASSWORD_REQUIRED: "Password is required",
+    INVALID_PASSWORD: "Invalid password",
+    LOGIN_SUCCESS: "Login successful",
+    EMAIL_AND_PASSWORD_REQUIRED: "Email and password are required",
 };

@@ -69,7 +69,12 @@ export const SQL_QUERIES = {
     SELECT *
     FROM users
     WHERE id = ?
-  `
+  `,
+  SELECT_USER_BY_EMAIL: `
+    SELECT *
+    FROM users
+    WHERE email = ?
+  `,
 };
 
 export const SPORTS_QUERIES = {
