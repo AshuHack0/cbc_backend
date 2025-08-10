@@ -1,6 +1,8 @@
 export const SQL_QUERIES = {
-  INSERT_OTP: "INSERT INTO otp_logs (phone, otp, expires_at) VALUES (?, ?, ?)",
-  SELECT_LATEST_OTP:"SELECT * FROM otp_logs WHERE phone = ? ORDER BY created_at DESC LIMIT 1",
+  INSERT_OTP: "INSERT INTO otp_logs (email, otp, expires_at) VALUES (?, ?, ?)",
+  SELECT_LATEST_OTP:"SELECT * FROM otp_logs WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+  SELECT_RECENT_OTP: "SELECT * FROM otp_logs WHERE email = ? ORDER BY created_at DESC LIMIT 1",
+  DELETE_RECENT_OTP: "DELETE FROM otp_logs WHERE email = ?",
   DELETE_OTP: "DELETE FROM otp_logs WHERE id = ?",
   UPDATE_ATTEMPTS: "UPDATE otp_logs SET attempts = attempts + 1 WHERE id = ?",
   MARK_OTP_VERIFIED: "UPDATE otp_logs SET is_verified = TRUE WHERE id = ?",
@@ -74,6 +76,11 @@ export const SQL_QUERIES = {
     SELECT *
     FROM users
     WHERE email = ?
+  `, 
+  UPDATE_PASSWORD: `
+    UPDATE users
+    SET password = ?, is_verified = ?
+    WHERE id = ?
   `,
 };
 
