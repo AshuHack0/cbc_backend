@@ -2,23 +2,27 @@ import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
 
 dotenv.config();
-
-// Create transporter
+// Create transporter for Plesk SMTP
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: process.env.EMAIL_HOST,  // Usually "mail." + your domain
+  port: 465,
+  secure: true, // true because port 465 uses SSL
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASSWORD // Use app password for Gmail
+    pass: process.env.EMAIL_PASSWORD
   }
 });
 
-// Verify transporter
-transporter.verify(function(error, success) {
+// Test SMTP connection
+transporter.verify((error, success) => {
   if (error) {
-    console.log('Email server error:', error);
+    console.error('❌ Email server error:', error);
   } else {
-    console.log('Email server is ready to send messages');
+    console.log('✅ Email server is ready to send messages');
   }
 });
+
+ 
+
 
 export default transporter; 

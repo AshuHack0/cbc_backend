@@ -1,4 +1,3 @@
-import twilio from "twilio";
 import dotenv from "dotenv";
 import logger from "../utils/logger.js";
 import { executeQuery2 } from "../config/db.js";
@@ -8,13 +7,7 @@ import JWT from "jsonwebtoken";
 import transporter from "../config/email.js";
 dotenv.config();
 
-// Initialize Twilio client
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
-
-
+ 
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000);
 };
