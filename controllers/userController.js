@@ -30,7 +30,9 @@ export const getBookDetailsController = async (req, res) => {
       if (!results || results.length === 0) {
         return res.status(404).json({ message: "No payment or booking details found" });
       }
-  
+   
+      // console.log('results:: hai ye :', results);
+
       // Map results to unify response shape
       const combined = results.map(row => {
         if (row.booking_id) {
@@ -51,7 +53,8 @@ export const getBookDetailsController = async (req, res) => {
             transactionId: row.transaction_id,
             facilityName: row.facility_name,
             imgSrc: row.img_src,
-            availabilityStatus: row.availability_status,
+            availabilityStatus: row.availability_status, 
+            boking_time_json: row.boking_time_json,
           };
         } else {
           // no booking, payment failed or pending
@@ -72,6 +75,7 @@ export const getBookDetailsController = async (req, res) => {
             facilityName: null,
             imgSrc: null,
             availabilityStatus: null,
+            boking_time_json: row.boking_time_json,
           };
         }
       });
@@ -321,9 +325,13 @@ export const verifyPayment = async (req, res) => {
 
         logger.info(`Payment verified successfully for member: ${token}`);
 
+        // 6. Fetch updated member and family data with membership codes
+        const updatedMember = await executeQuery2(SQL_QUERIES.SELECT_MEMBER_BY_ID, [token]);
+        const updatedFamilyMembers = await executeQuery2(SQL_QUERIES.SELECT_FAMILY_MEMBERS, [token]);
+
         // Send welcome email
         try {
-          const emailHtml = generateWelcomeEmail(member, familyMembers);
+          const emailHtml = generateWelcomeEmail(updatedMember[0], updatedFamilyMembers);
           
           await transporter.sendMail({
             from: `"Changi Beach Club" <${process.env.EMAIL_USER}>`,
@@ -343,6 +351,7 @@ export const verifyPayment = async (req, res) => {
             member: {
                 ...member,
                 paymentStatus: 'paid'
+                
             }
         });
 
@@ -381,7 +390,7 @@ export function generateWelcomeEmail(member, familyMembers = []) {
     },
     ...(familyMembers || []).map((fm) => ({
       name: fm.fullName,
-      membershipCode: fm.membershipCode || 'Pending',
+      membershipCode: fm.membershipCode || member.membershipCode || 'Pending',
     })),
   ];
   
@@ -472,5 +481,195 @@ export function generateWelcomeEmail(member, familyMembers = []) {
   </html>
   `;
 }
+
+// Send OTP for email verification
+export const sendOtp = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email is required'
+            });
+        }
+
+        // First check if user is already registered
+        const existingMembers = await executeQuery2(SQL_QUERIES.SELECT_MEMBER_BY_EMAIL, [email]);
+        
+        if (existingMembers && existingMembers.length > 0) {
+            const existingMember = existingMembers[0];
+            if (existingMember.paymentStatus === 'paid') {
+                logger.info(`User already registered with email: ${email}, membershipCode: ${existingMember.membershipCode}`);
+                
+                return res.status(200).json({
+                    success: true,
+                    message: 'User is already registered',
+                    isAlreadyRegistered: true,
+                    membershipId: existingMember.membershipCode,
+                    memberDetails: {
+                        fullName: existingMember.fullName,
+                        email: existingMember.email,
+                        membershipType: existingMember.membershipType,
+                        packageType: existingMember.packageType,
+                        paymentStatus: existingMember.paymentStatus || 'unknown'
+                    }
+                });
+            }  
+        }
+
+        // User is not registered, proceed with OTP generation
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        
+        // Store OTP in database with expiration (5 minutes) - using existing OTP table
+        const expiryTime = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+        
+        await executeQuery2(SQL_QUERIES.INSERT_OTP, [
+            email,
+            otp,
+            expiryTime,
+        ]);
+
+        // Send OTP via email
+        const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; }
+                .otp-container { 
+                    background: #f8f9fa; 
+                    padding: 20px; 
+                    border-radius: 8px; 
+                    text-align: center; 
+                }
+                .otp-code { 
+                    font-size: 32px; 
+                    font-weight: bold; 
+                    color: #0B6BCB; 
+                    letter-spacing: 4px; 
+                    margin: 20px 0; 
+                }
+            </style>
+        </head>
+        <body>
+            <div class="otp-container">
+                <h2>Email Verification</h2>
+                <p>Your verification code is:</p>
+                <div class="otp-code">${otp}</div>
+                <p>This code will expire in 5 minutes.</p>
+                <p>If you didn't request this code, please ignore this email.</p>
+            </div>
+        </body>
+        </html>
+        `;
+
+        await transporter.sendMail({
+            from: `"Changi Beach Club" <${process.env.EMAIL_USER}>`,
+            to: email,
+            subject: "Email Verification Code - Changi Beach Club",
+            html: emailHtml,
+        });
+
+        
+        logger.info(`OTP sent successfully to: ${email}`);
+
+        res.status(200).json({
+            success: true,
+            message: 'OTP sent successfully to your email',
+            isAlreadyRegistered: false
+        });
+
+    } catch (error) {
+        logger.error(`Error in sendOtp: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to send OTP. Please try again.'
+        });
+    }
+};
+
+// Verify OTP for email verification
+export const verifyOtp = async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        if (!email || !otp) {
+            return res.status(400).json({
+                success: false,
+                message: 'Email and OTP are required'
+            });
+        }
+
+        // Get latest OTP record using existing query
+        const otpRecords = await executeQuery2(SQL_QUERIES.SELECT_LATEST_OTP, [email]);
+
+        // Check if OTP exists
+        if (!otpRecords || otpRecords.length === 0) {
+            logger.error(`No OTP found for email: ${email}`);
+            return res.status(400).json({
+                success: false,
+                message: 'No OTP found for this email'
+            });
+        }
+
+        const otpRecord = otpRecords[0];
+
+        // Check if OTP is expired
+        if (new Date() > new Date(otpRecord.expires_at)) {
+            logger.error(`OTP expired for email: ${email}`);
+            // Delete the expired OTP record
+            await executeQuery2(SQL_QUERIES.DELETE_OTP, [otpRecord.id]);
+            return res.status(400).json({
+                success: false,
+                message: 'OTP has expired. Please request a new one.'
+            });
+        }
+
+        // Check max attempts (3)
+        if (otpRecord.attempts >= 3) {
+            logger.error(`Max attempts reached for email: ${email}`);
+            // Delete the OTP record after max attempts
+            await executeQuery2(SQL_QUERIES.DELETE_OTP, [otpRecord.id]);
+            return res.status(400).json({
+                success: false,
+                message: 'Maximum attempts reached. Please request a new OTP.'
+            });
+        }
+
+        // Update attempts
+        await executeQuery2(SQL_QUERIES.UPDATE_ATTEMPTS, [otpRecord.id]);
+
+        // Verify OTP
+        if (otpRecord.otp === otp) {
+            // Delete the OTP record after successful verification
+            await executeQuery2(SQL_QUERIES.DELETE_OTP, [otpRecord.id]);
+
+            logger.info(`OTP verified successfully for: ${email}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Email verified successfully'
+            });
+        } else {
+            logger.error(`Invalid OTP for email: ${email}`);
+            res.status(400).json({
+                success: false,
+                message: 'Invalid OTP. Please try again.',
+                remainingAttempts: 2 - otpRecord.attempts,
+            });
+        }
+
+    } catch (error) {
+        logger.error(`Error in verifyOtp: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to verify OTP. Please try again.'
+        });
+    }
+};
 
 

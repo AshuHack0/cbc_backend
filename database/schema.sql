@@ -37,6 +37,10 @@ CREATE TABLE bookings (
     order_id VARCHAR(255) NOT NULL,
     booking_date DATETIME NOT NULL,
     status VARCHAR(50) NOT NULL,
+    facility_id INT,
+    booked_date DATE,
+    booked_slot INT,
+    boking_time_json TEXT,
     UNIQUE KEY unique_booking (order_id),
     FOREIGN KEY (order_id) REFERENCES payments(order_id)
 );

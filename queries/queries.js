@@ -12,6 +12,7 @@ export const SQL_QUERIES = {
   
   // Member-related queries
   SELECT_MEMBER_BY_ID: "SELECT * FROM Member WHERE id = ?",
+  SELECT_MEMBER_BY_EMAIL: "SELECT * FROM users WHERE email = ?  order by created_at DESC limit 1",
   SELECT_FAMILY_MEMBERS: "SELECT * FROM FamilyMember WHERE memberId = ?",
   UPDATE_MEMBER_PAYMENT: `
     UPDATE Member SET 
@@ -37,6 +38,10 @@ export const SQL_QUERIES = {
     INSERT INTO payments (user_id, status, amount, payment_date, order_id)
     VALUES (?, ?, ?, ?, ?)
   `,
+  CREATE_PAYMENT_RECORD_FOR_CASH: `
+    INSERT INTO payments (user_id, status, amount, payment_date, order_id, transaction_id)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `,
   CREATE_PAYMENT_RECORD_FOR_FREE_BOOKING: `
   INSERT INTO payments (user_id, status, amount, payment_date, order_id, transaction_id)
   VALUES (?, ?, ?, ?, ?, ?)
@@ -58,6 +63,10 @@ export const SQL_QUERIES = {
     LIMIT 1
   `,
   CREATE_BOOKING_RECORD: `
+    INSERT INTO bookings (user_id, order_id, booking_date, status, facility_id, booked_date, booked_slot, boking_time_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  CREATE_BOOKING_RECORD_FOR_CASH: `
     INSERT INTO bookings (user_id, order_id, booking_date, status, facility_id, booked_date, booked_slot, boking_time_json)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `,
@@ -208,6 +217,7 @@ SELECT
   bookings.start_time,
   bookings.end_time,
   bookings.status AS booking_status,
+  bookings.boking_time_json,
   facilities.name AS facility_name,
   facilities.img_src,
   facilities.availability_status

@@ -362,3 +362,291 @@ export const createFreeBooking = async (req, res) => {
         });
     }
 };
+
+
+export const createCashPayment = async (req, res) => {
+    try {
+        const { _id } = req.user;
+        
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        const { amount, facility_id, date, slot, formattedBookings } = req.body;
+
+        // Validate required fields
+        if (!amount || amount <= 0) {
+            logger.error('Invalid amount provided for cash payment');
+            return res.status(400).json({
+                success: false,
+                message: 'Valid amount is required for cash payment'
+            });
+        }
+
+        if (!facility_id || !date) {
+            logger.error('Missing required fields for cash payment');
+            return res.status(400).json({
+                success: false,
+                message: 'facility_id and date are required'
+            });
+        }
+
+        // Generate a unique order ID for cash payment
+        const orderId = `cash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        try {
+            // Insert payment record for cash payment with pending status
+            await executeQuery2(SQL_QUERIES.CREATE_PAYMENT_RECORD_FOR_CASH, [
+                _id,
+                'pending', // status is pending
+                amount,
+                new Date(),
+                orderId,
+                orderId
+            ]);
+
+            // Create booking record with pending status
+            await executeQuery2(SQL_QUERIES.CREATE_BOOKING_RECORD_FOR_CASH, [
+                _id,
+                orderId,
+                new Date(),
+                'pending', // booking status is pending
+                facility_id,
+                date,
+                slot,
+                formattedBookings
+            ]);
+
+            logger.info(`Cash payment record created successfully for user: ${_id}, order ID: ${orderId}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Cash payment record created successfully',
+                booking: {
+                    orderId: orderId,
+                    userId: _id,
+                    facilityId: facility_id,
+                    date: date,
+                    slot: slot,
+                    amount: amount,
+                    status: 'pending',
+                    paymentStatus: 'not completed'
+                }
+            });
+
+        } catch (dbError) {
+            logger.error(`Database error creating cash payment: ${dbError.message}`);
+            console.error('Database error:', dbError);
+            
+            // Clean up any partial records
+            try {
+                await executeQuery2('DELETE FROM payments WHERE order_id = ?', [orderId]);
+                await executeQuery2('DELETE FROM bookings WHERE order_id = ?', [orderId]);
+            } catch (cleanupError) {
+                logger.error(`Error during cleanup: ${cleanupError.message}`);
+            }
+            
+            throw dbError;
+        }
+
+    } catch (error) {
+        logger.error(`Error in cash payment creation: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+export const updateCashPaymentStatus = async (req, res) => {
+    try {
+        const { _id } = req.user;
+        const { orderId, status, paymentStatus } = req.body;
+
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        if (!orderId) {
+            logger.error('Order ID is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Order ID is required'
+            });
+        }
+
+        // Validate status values
+        const validStatuses = ['pending', 'confirmed', 'cancelled'];
+        const validPaymentStatuses = ['not completed', 'completed', 'failed'];
+
+        if (status && !validStatuses.includes(status)) {
+            logger.error('Invalid status provided');
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid status. Must be one of: pending, confirmed, cancelled'
+            });
+        }
+
+        if (paymentStatus && !validPaymentStatuses.includes(paymentStatus)) {
+            logger.error('Invalid payment status provided');
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid payment status. Must be one of: not completed, completed, failed'
+            });
+        }
+
+        try {
+            // Update payment status if provided
+            if (paymentStatus) {
+                await executeQuery2(SQL_QUERIES.UPDATE_CASH_PAYMENT_STATUS, [
+                    paymentStatus,
+                    new Date(),
+                    orderId
+                ]);
+            }
+
+            // Update booking status if provided
+            if (status) {
+                await executeQuery2(SQL_QUERIES.UPDATE_CASH_BOOKING_STATUS, [
+                    status,
+                    new Date(),
+                    orderId
+                ]);
+            }
+
+            logger.info(`Cash payment status updated successfully for order: ${orderId}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Cash payment status updated successfully',
+                orderId: orderId,
+                updatedStatus: status,
+                updatedPaymentStatus: paymentStatus
+            });
+
+        } catch (dbError) {
+            logger.error(`Database error updating cash payment status: ${dbError.message}`);
+            console.error('Database error:', dbError);
+            throw dbError;
+        }
+
+    } catch (error) {
+        logger.error(`Error in updating cash payment status: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+export const checkExpiredCashPayments = async () => {
+  try {
+    // Find cash payments that are pending and older than 6 hours
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    
+    const expiredPayments = await executeQuery2(SQL_QUERIES.GET_EXPIRED_CASH_PAYMENTS, [sixHoursAgo]);
+    
+    if (expiredPayments.length > 0) {
+      logger.info(`Found ${expiredPayments.length} expired cash payments to update`);
+      
+      for (const payment of expiredPayments) {
+        try {
+          // Update payment status to failed
+          await executeQuery2(SQL_QUERIES.UPDATE_EXPIRED_CASH_PAYMENT, [
+            'failed',
+            new Date(),
+            payment.order_id
+          ]);
+          
+          // Update booking status to failed
+          await executeQuery2(SQL_QUERIES.UPDATE_EXPIRED_CASH_BOOKING, [
+            'failed',
+            new Date(),
+            payment.order_id
+          ]);
+          
+          logger.info(`Updated expired cash payment: ${payment.order_id}`);
+        } catch (updateError) {
+          logger.error(`Error updating expired cash payment ${payment.order_id}: ${updateError.message}`);
+        }
+      }
+    }
+    
+    return expiredPayments.length;
+  } catch (error) {
+    logger.error(`Error checking expired cash payments: ${error.message}`);
+    throw error;
+  }
+};
+
+export const getCashPaymentExpiryTime = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { _id } = req.user;
+    
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+    
+    // Get payment details and calculate expiry time
+    const [payment] = await executeQuery2(SQL_QUERIES.GET_CASH_PAYMENT_EXPIRY, [orderId, _id]);
+    
+    if (!payment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Payment not found'
+      });
+    }
+    
+    if (payment.status !== 'pending' && payment.paymentStatus !== 'not completed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment is not pending'
+      });
+    }
+    
+    // Calculate expiry time (6 hours from booking time)
+    const bookingTime = new Date(payment.booking_date);
+    const expiryTime = new Date(bookingTime.getTime() + 6 * 60 * 60 * 1000);
+    const now = new Date();
+    const timeRemaining = expiryTime.getTime() - now.getTime();
+    
+    // Check if payment has expired
+    const isExpired = timeRemaining <= 0;
+    
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: payment.order_id,
+        bookingTime: payment.booking_date,
+        expiryTime: expiryTime,
+        timeRemaining: Math.max(0, timeRemaining),
+        isExpired: isExpired,
+        hoursRemaining: Math.max(0, Math.floor(timeRemaining / (1000 * 60 * 60))),
+        minutesRemaining: Math.max(0, Math.floor((timeRemaining % (1000 * 60 * 60)) / (1000 * 60)))
+      }
+    });
+    
+  } catch (error) {
+    logger.error(`Error getting cash payment expiry time: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+    });
+  }
+};
