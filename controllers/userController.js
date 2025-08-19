@@ -2,7 +2,7 @@ import { executeQuery2 } from '../config/db.js';
 import { LOG_MESSAGES, RESPONSE_MESSAGES } from '../constants/constants.js';
 import logger from '../utils/logger.js';
 import { generateCustomUUID } from '../utils/uuid.js';
-import { SQL_QUERIES, BOOKING_QUERIES } from '../queries/queries.js';
+import { SQL_QUERIES, BOOKING_QUERIES , SPORTS_QUERIES} from '../queries/queries.js';
 import STRIPE_PRICES from '../stripePriceMap.js';
 import stripe from '../config/stripe.js';
 import transporter from '../config/email.js';
@@ -672,4 +672,34 @@ export const verifyOtp = async (req, res) => {
     }
 };
 
+export const getAllUsers = async (req, res) => {
+    try {
+        const users = await executeQuery2(SQL_QUERIES.SELECT_ALL_USERS);
+        res.status(200).json({ success: true, users });
+    } catch (error) {
+        logger.error(`Error in getAllUsers: ${error.message}`);
+        res.status(500).json({ success: false, message: 'Failed to fetch users' });
+    }
+};
 
+
+export const getAllBookings = async (req, res) => {
+    try {
+        const bookings = await executeQuery2(BOOKING_QUERIES.SELECT_ALL_BOOKINGS);
+        res.status(200).json({ success: true, bookings });
+    } catch (error) {
+        logger.error(`Error in getAllBookings: ${error.message}`);
+        res.status(500).json({ success: false, message: 'Failed to fetch bookings' });
+    }
+};
+
+ 
+export const getAllFacilites = async (req, res) => {
+    try {
+        const facilites = await executeQuery2(SPORTS_QUERIES.SELECT_ALL_FACILITIES);
+        res.status(200).json({ success: true, facilites });
+    } catch (error) {
+        logger.error(`Error in getAllFacilites: ${error.message}`);
+        res.status(500).json({ success: false, message: 'Failed to fetch facilites' });
+    }
+};

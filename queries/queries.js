@@ -9,7 +9,7 @@ export const SQL_QUERIES = {
   SELECT_USER: "SELECT * FROM users WHERE phone = ?",
   INSERT_USER: "INSERT INTO users (phone) VALUES (?)",
   SELECT_USER_DETAILS: "SELECT * FROM users WHERE id = ?",
-  
+  SELECT_ALL_USERS: "SELECT * FROM users",
   // Member-related queries
   SELECT_MEMBER_BY_ID: "SELECT * FROM Member WHERE id = ?",
   SELECT_MEMBER_BY_EMAIL: "SELECT * FROM users WHERE email = ?  order by created_at DESC limit 1",
@@ -90,6 +90,9 @@ export const SQL_QUERIES = {
     UPDATE users
     SET password = ?, is_verified = ?
     WHERE id = ?
+  `,
+  SELECT_ALL_ROOMS: `
+    SELECT * FROM rooms
   `,
 };
 
@@ -184,6 +187,33 @@ export const SPORTS_QUERIES = {
 
 
 export const BOOKING_QUERIES = {
+  SELECT_ALL_BOOKINGS: `
+  SELECT 
+    b.id AS booking_id,
+    b.user_id,
+    b.order_id,
+    b.booking_date,
+    b.facility_id,
+    b.booked_date,
+    b.booked_slot,
+    b.status AS booking_status,
+    b.boking_time_json,
+    p.status AS payment_status,
+    p.amount,
+    p.payment_date,
+    p.transaction_id,
+    f.name AS facility_name,
+    f.img_src,
+    f.availability_status,
+    u.email AS user_email,
+    u.phone AS user_phone
+  FROM bookings b
+  LEFT JOIN payments p ON b.order_id = p.order_id
+  LEFT JOIN facilities f ON b.facility_id = f.id
+  LEFT JOIN users u ON b.user_id = u.id
+  ORDER BY b.booking_date DESC
+  `,
+
   SELECT_SUCCESSFUL_BOOKINGS: `
   SELECT bookings.*, payments.status AS payment_status, payments.amount, payments.payment_date, facilities.name, facilities.img_src, facilities.availability_status
   FROM bookings

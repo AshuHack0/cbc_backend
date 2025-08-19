@@ -5,6 +5,7 @@ import authRoute from './routes/authRoute.js';
 import userRoute from './routes/userRoutes.js';
 import sportsRoute from './routes/sportsRoute.js';
 import paymentRoute from './routes/paymentRoutes.js';
+import roomRoute from './routes/roomRoute.js';
 import morgan from 'morgan';
  
 import logger from './utils/logger.js';
@@ -25,6 +26,7 @@ app.use("/api/auth", authRoute);
 app.use("/api/user", userRoute);
 app.use("/api/sports", sportsRoute);
 app.use("/api/payment", paymentRoute); 
+app.use("/api/room", roomRoute);
 
 
 
