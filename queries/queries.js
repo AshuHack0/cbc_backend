@@ -1,4 +1,36 @@
 export const SQL_QUERIES = {
+  // Room payment queries
+  UPDATE_ROOM_PAYMENT_STATUS: `
+    UPDATE payments_rooms 
+    SET status = ?,
+        amount = ?
+    WHERE payment_intent_id = ? AND user_id = ?
+  `,
+  CREATE_ROOM_PAYMENT_RECORD: `
+    INSERT INTO payments_rooms (
+      payment_intent_id,
+      order_id,
+      user_id,
+      room_id,
+      amount,
+      currency,
+      room_count,
+      adult_count,
+      children_count,
+      total_nights,
+      date,
+      start_date, 
+      end_date,
+      status,
+      client_secret
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  GET_ROOM_PAYMENT_DETAILS: `
+    SELECT *
+    FROM payments_rooms
+    WHERE payment_intent_id = ? AND user_id = ?
+  `,
   INSERT_OTP: "INSERT INTO otp_logs (email, otp, expires_at) VALUES (?, ?, ?)",
   SELECT_LATEST_OTP:"SELECT * FROM otp_logs WHERE email = ? ORDER BY created_at DESC LIMIT 1",
   SELECT_RECENT_OTP: "SELECT * FROM otp_logs WHERE email = ? ORDER BY created_at DESC LIMIT 1",
@@ -36,6 +68,10 @@ export const SQL_QUERIES = {
   GET_PAYMENT_STATUS: 'SELECT * FROM payments WHERE user_id = ? ORDER BY payment_date DESC LIMIT 1',
   CREATE_PAYMENT_RECORD: `
     INSERT INTO payments (user_id, status, amount, payment_date, order_id)
+    VALUES (?, ?, ?, ?, ?)
+  `,
+  CREATE_PAYMENT_RECORD_FOR_ROOM: `
+    INSERT INTO payments_rooms (user_id, status, amount, date, payment_intent_id	)
     VALUES (?, ?, ?, ?, ?)
   `,
   CREATE_PAYMENT_RECORD_FOR_CASH: `

@@ -9,7 +9,7 @@ import roomRoute from './routes/roomRoute.js';
 import morgan from 'morgan';
  
 import logger from './utils/logger.js';
-import { handleWebhook } from './controllers/paymentController.js';
+import { handleWebhook, handleRoomWebhook } from './controllers/paymentController.js'; 
 
 dotenv.config(); // Load environment variables from .env file
 
@@ -18,7 +18,8 @@ const PORT = process.env.PORT || 8085;
 const app = express(); // Create an Express application
 
 app.use(cors()); // Enable CORS
-app.use("/api/payment/webhook", express.raw({ type: 'application/json' }), handleWebhook);
+app.post("/api/payment/webhook", express.raw({ type: 'application/json' }), handleWebhook); 
+app.post("/api/payment/room-webhook", express.raw({ type: 'application/json' }), handleRoomWebhook);
 app.use(express.json()); // Middleware to parse JSON requests
 app.use(morgan("dev")); // Log requests
 

@@ -84,6 +84,106 @@ export const createPaymentIntent = async (req, res) => {
     }
 };
 
+
+export const createPaymentIntentForRoom = async (req, res) => {
+    try {
+        const { _id } = req.user;
+        
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        const { amount, currency , room_id, date , room_count, adult_count, children_count, total_nights ,start_date, end_date  } = req.body;
+
+        // Validate amount
+        if (!amount || amount <= 0) {
+            logger.error('Invalid amount provided');
+            return res.status(400).json({
+                success: false,
+                message: 'Valid amount is required'
+            });
+        }
+
+        // Create a PaymentIntent with the order amount and currency
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Convert to smallest currency unit (paise for INR)
+            currency: currency,
+            metadata: {
+                user_id: _id,
+                room_id: room_id,
+                room_count: room_count,
+                adult_count: adult_count,
+                children_count: children_count,
+                total_nights: total_nights,
+                date: date,
+                start_date: start_date,
+                end_date: end_date
+            },
+            automatic_payment_methods: {
+                enabled: true,
+                allow_redirects: 'never'
+            }
+        });
+
+        // Update metadata with payment intent ID after creation
+        await stripe.paymentIntents.update(paymentIntent.id, {
+            metadata: {
+                user_id: _id,
+                order_id: paymentIntent.id,
+                room_id: room_id,
+                room_count: room_count,
+                adult_count: adult_count,
+                children_count: children_count,
+                total_nights: total_nights,
+                date: date,
+                start_date: start_date,
+                end_date: end_date
+            }
+        });
+
+        logger.info(`Payment intent created successfully for user: ${_id}`);
+
+        // Insert initial payment record
+        await executeQuery2(SQL_QUERIES.CREATE_ROOM_PAYMENT_RECORD, [
+            paymentIntent.id,
+            paymentIntent.id, // order_id same as payment_intent_id
+            _id,
+            room_id,
+            amount,
+            currency,
+            room_count,
+            adult_count,
+            children_count,
+            total_nights,
+            date,
+            start_date,
+            end_date,
+            'pending',
+            paymentIntent.client_secret
+        ]);
+
+        res.status(200).json({
+            success: true,
+            message: RESPONSE_MESSAGES.PAYMENT_INTENT_CREATED,
+            clientSecret: paymentIntent.client_secret
+        });
+
+    } catch (error) {
+        logger.error(`Error in payment intent creation: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+
 export const handleWebhook = async (req, res) => {
     const sig = req.headers['stripe-signature'];
     let event;
@@ -216,6 +316,8 @@ export const handleWebhook = async (req, res) => {
         });
     }
 };
+ 
+
 
 export const getPaymentStatus = async (req, res) => {
     const { _id } = req.user;
@@ -254,6 +356,54 @@ export const getPaymentStatus = async (req, res) => {
                 transactionId: payment.transaction_id,
                 orderId: payment.order_id,
                 booking: bookingDetails
+            }
+        });
+
+    } catch (error) {
+        logger.error(LOG_MESSAGES.ERROR_IN_GET_PAYMENT_STATUS(error)); 
+        console.log("error", error);
+        res.status(500).json({
+            success: false,
+            message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+
+
+export const getPaymentStatusRooms = async (req, res) => {
+    const { _id } = req.user; 
+    console.log("user id", _id);
+    const { orderId } = req.query;
+    console.log("orderId", orderId); 
+    try {
+        // Get payment status with order ID for more precise tracking
+        const [payment] = await executeQuery2(
+            SQL_QUERIES.GET_ROOM_PAYMENT_DETAILS, 
+            [orderId, _id]
+        );
+        
+        if (!payment) {
+            return res.status(404).json({
+                success: false,
+                message: RESPONSE_MESSAGES.PAYMENT_NOT_FOUND
+            });
+        }
+
+ 
+       
+        console.log("payment", payment);
+        res.status(200).json({
+            success: true,
+            message: RESPONSE_MESSAGES.PAYMENT_STATUS_RETRIEVED,
+            payment: {
+                status: payment.status,
+                amount: payment.amount,
+                date: payment.payment_date,
+                transactionId: payment.transaction_id,
+                orderId: payment.order_id,
+                room_id: payment.room_id,
+               
             }
         });
 
@@ -589,6 +739,119 @@ export const checkExpiredCashPayments = async () => {
     logger.error(`Error checking expired cash payments: ${error.message}`);
     throw error;
   }
+};
+
+
+
+
+
+
+export const handleRoomWebhook = async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        // Verify webhook signature using raw body
+        event = stripe.webhooks.constructEvent(
+            req.body,
+            sig,
+            process.env.STRIPE_WEBHOOK_SECRET_ROOM
+        );
+
+        // Log the event type for debugging
+        logger.info(`Processing room webhook event: ${event.type}`);
+        logger.info(`Room webhook event data: ${JSON.stringify(event, null, 2)}`);
+
+        // Handle the event
+        switch (event.type) {
+            case 'payment_intent.succeeded':
+                const paymentIntent = event.data.object;
+                try {
+                    // Update payment status in database 
+                    logger.info(`Room payment intent succeeded: ${JSON.stringify(paymentIntent, null, 2)}`);
+                    await executeQuery2(SQL_QUERIES.UPDATE_ROOM_PAYMENT_STATUS, [
+                        'succeeded',
+                        paymentIntent.amount / 100,
+                        paymentIntent.id,
+                        paymentIntent.metadata.user_id
+                    ]);
+
+                    logger.info(`Room payment succeeded for payment intent: ${paymentIntent.id}`);
+                } catch (dbError) {
+                    logger.error(`Database error processing successful room payment: ${dbError.message}`);
+                    console.log("dbError", dbError);
+                    // Don't throw the error - we'll handle it asynchronously
+                }
+                break;
+
+            case 'payment_intent.payment_failed':
+                const failedPayment = event.data.object;
+                try {
+                    await executeQuery2(SQL_QUERIES.UPDATE_ROOM_PAYMENT_STATUS, [
+                        'failed',
+                        failedPayment.amount / 100,
+                        failedPayment.id,
+                        failedPayment.metadata.user_id
+                    ]);
+
+                    logger.error(`Room payment failed for payment intent: ${failedPayment.id}`);
+                } catch (dbError) {
+                    logger.error(`Database error processing failed room payment: ${dbError.message}`);
+                }
+                break;
+
+            case 'payment_intent.processing':
+                const processingPayment = event.data.object;
+                try {
+                    await executeQuery2(SQL_QUERIES.UPDATE_ROOM_PAYMENT_STATUS, [
+                        'processing',
+                        processingPayment.amount / 100,
+                        processingPayment.id,
+                        processingPayment.metadata.user_id
+                    ]);
+                } catch (dbError) {
+                    logger.error(`Database error processing room payment in processing state: ${dbError.message}`);
+                }
+                break;
+
+            case 'payment_intent.canceled':
+                const canceledPayment = event.data.object;
+                try {
+                    await executeQuery2(SQL_QUERIES.UPDATE_ROOM_PAYMENT_STATUS, [
+                        'cancelled',
+                        canceledPayment.amount / 100,
+                        canceledPayment.id,
+                        canceledPayment.metadata.user_id
+                    ]);
+                } catch (dbError) {
+                    logger.error(`Database error processing canceled room payment: ${dbError.message}`);
+                }
+                break;
+
+            default:
+                logger.info(`Unhandled room webhook event type: ${event.type}`);
+        }
+
+        // Always return a 200 response to acknowledge receipt of the event
+        res.status(200).json({ received: true });
+        
+    } catch (err) {
+        if (err.type === 'StripeSignatureVerificationError') {
+            // For signature verification errors, return 400 as this indicates an invalid request
+            logger.error(`Room webhook signature verification failed: ${err.message}`);
+            return res.status(400).json({
+                success: false,
+                message: 'Room webhook signature verification failed'
+            });
+        }
+
+        // For all other errors, log them but still return 200 to acknowledge receipt
+        logger.error(`Error processing room webhook: ${err.message}`);
+        res.status(200).json({
+            received: true,
+            warning: 'Room webhook received but processing encountered an error'
+        });
+    }
 };
 
 export const getCashPaymentExpiryTime = async (req, res) => {
