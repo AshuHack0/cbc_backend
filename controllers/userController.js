@@ -248,6 +248,49 @@ export const getBookDetailsController = async (req, res) => {
     }
 };
 
+
+export const createCheckoutSessionCorporate = async (req, res) => {
+    try {
+        const {
+            fullName,
+            email,
+            phone,
+            occupation,
+            companyName,
+            membershipType,
+            packageType,
+            packageLabel,
+            interests,
+        } = req.body;
+
+        const memberId = generateCustomUUID();
+        const prefix = "VTM";
+        const membershipCode = await generateUniqueCode(prefix); 
+        console.log("membershipCode",membershipCode)
+        await executeQuery2(
+            `INSERT INTO users (idd, fullName, email, phone, occupation, membershipType, packageType, packageLabel, interests, membershipCode, company_name)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [memberId, fullName, email, phone, occupation, membershipType, packageType, packageLabel, JSON.stringify(interests), membershipCode, companyName]
+        );
+       
+
+        res.status(200).json({
+            success: true,
+            message: "Corporate membership created successfully",
+            url: `https://demo.cbcmemberships.sg/thank-you?token=${memberId}&membershipType=${membershipType}`,
+        });
+
+    } catch (error) {
+        logger.error(`Error in createCheckoutSessionCorporate: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: "Server error" ,
+            errorMessage: error.message
+        });
+    }
+};
+
 export const verifyPayment = async (req, res) => {
     try {
         const { token } = req.query;
@@ -328,6 +371,61 @@ export const verifyPayment = async (req, res) => {
         // 6. Fetch updated member and family data with membership codes
         const updatedMember = await executeQuery2(SQL_QUERIES.SELECT_MEMBER_BY_ID, [token]);
         const updatedFamilyMembers = await executeQuery2(SQL_QUERIES.SELECT_FAMILY_MEMBERS, [token]);
+
+        // Send welcome email
+        try {
+          const emailHtml = generateWelcomeEmail(updatedMember[0], updatedFamilyMembers);
+          
+          await transporter.sendMail({
+            from: `"Changi Beach Club" <${process.env.EMAIL_USER}>`,
+            to: member.email,
+            subject: "Welcome to Changi Beach Club 🎉",
+            html: emailHtml,
+          });
+          
+          logger.info(`Welcome email sent successfully to: ${member.email}`);
+        } catch (emailError) {
+          logger.error(`Failed to send welcome email: ${emailError.message}`);
+          // Don't fail the request if email fails
+        }
+
+        res.json({ 
+            success: true, 
+            member: {
+                ...member,
+                paymentStatus: 'paid'
+                
+            }
+        });
+
+    } catch (error) {
+        logger.error(`Error in verifyPayment: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: "Server error" 
+        });
+    }
+};
+
+export const verifyPaymentCorporate = async (req, res) => {
+    try {
+        const { token } = req.query;
+        
+        if (!token) {
+            logger.error('Missing token in verifyPayment');
+            return res.status(400).json({ 
+                success: false,
+                error: "Missing token" 
+            });
+        }
+
+        // 1. Fetch member by token
+        const members = await executeQuery2(SQL_QUERIES.SELECT_MEMBER_BY_ID, [token]);
+        const member = members && members.length > 0 ? members[0] : null;
+
+        logger.info(`Looking for member with token: ${token}`);
+        logger.info(`Found members: ${JSON.stringify(members)}`);
 
         // Send welcome email
         try {

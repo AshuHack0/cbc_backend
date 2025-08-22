@@ -1,5 +1,5 @@
 import express from 'express';
-import { createPaymentIntent, handleWebhook, handleRoomWebhook, getPaymentStatus, createFreeBooking, createCashPayment, createPaymentIntentForRoom, getPaymentStatusRooms } from '../controllers/paymentController.js';
+import { createPaymentIntent, handleWebhook, handleRoomWebhook, getPaymentStatus, createFreeBooking, createCashPayment, createCashPaymentRooms, createPaymentIntentForRoom, getPaymentStatusRooms, getAllCashPayment, ApproveCashPayments } from '../controllers/paymentController.js';
 import { isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -20,11 +20,21 @@ router.post('/room-webhook', express.raw({ type: 'application/json' }), handleRo
 router.post('/freebooking',isAuthenticated , createFreeBooking)  
 
 
-router.post('/cashPayment',isAuthenticated , createCashPayment) 
+router.post('/cashPayment',isAuthenticated , createCashPayment)
+
+// Room cash payment (requires authentication)
+router.post('/cashPayment-rooms',isAuthenticated , createCashPaymentRooms) 
 
 // Get payment status (requires authentication)
 router.get('/status', isAuthenticated, getPaymentStatus); 
 
 router.get('/status-rooms', isAuthenticated, getPaymentStatusRooms);
+
+ 
+// get all cash payment
+router.get('/all-cash-payment', getAllCashPayment);
+
+router.post('/approve-cash-payment', ApproveCashPayments);
+
 
 export default router; 

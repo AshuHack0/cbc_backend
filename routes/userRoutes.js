@@ -1,6 +1,6 @@
 import express from 'express';
 import { isAuthenticated } from '../middleware/authMiddleware.js';
-import { createCheckoutSession, getAllBookings, getAllFacilites, getAllUsers, getBookDetailsController, getUserController, sendOtp, verifyOtp, verifyPayment } from '../controllers/userController.js';
+import { createCheckoutSession, createCheckoutSessionCorporate, getAllBookings, getAllFacilites, getAllUsers, getBookDetailsController, getUserController, sendOtp, verifyOtp, verifyPayment, verifyPaymentCorporate } from '../controllers/userController.js';
 
 const router = express.Router();
 
@@ -8,9 +8,13 @@ router.get('/userDetails', isAuthenticated, getUserController);
 
 router.get('/booked-details', isAuthenticated, getBookDetailsController); 
 
-router.post('/create-checkout-session', createCheckoutSession); 
+router.post('/create-checkout-session', createCheckoutSession);  
 
-router.get('/verify-payment', verifyPayment);  
+router.post('/create-checkout-session-corporate', createCheckoutSessionCorporate);  
+
+router.get('/verify-payment', verifyPayment);   
+
+router.get('/verify-payment-corporate', verifyPaymentCorporate);  
 
 router.post('/send-verification-otp', sendOtp);
 

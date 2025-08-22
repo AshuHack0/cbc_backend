@@ -6,12 +6,18 @@ import userRoute from './routes/userRoutes.js';
 import sportsRoute from './routes/sportsRoute.js';
 import paymentRoute from './routes/paymentRoutes.js';
 import roomRoute from './routes/roomRoute.js';
+import marketingRoute from './routes/MarketingRoutes.js';
 import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
  
 import logger from './utils/logger.js';
 import { handleWebhook, handleRoomWebhook } from './controllers/paymentController.js'; 
 
 dotenv.config(); // Load environment variables from .env file
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 8085;
 
@@ -23,13 +29,14 @@ app.post("/api/payment/room-webhook", express.raw({ type: 'application/json' }),
 app.use(express.json()); // Middleware to parse JSON requests
 app.use(morgan("dev")); // Log requests
 
+// Serve static files from public directory
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 app.use("/api/auth", authRoute); 
 app.use("/api/user", userRoute);
 app.use("/api/sports", sportsRoute);
 app.use("/api/payment", paymentRoute); 
 app.use("/api/room", roomRoute);
-
-
+app.use("/api/marketing", marketingRoute);
 
 // Start the server
 app.listen(PORT, () => {

@@ -130,7 +130,41 @@ export const SQL_QUERIES = {
   SELECT_ALL_ROOMS: `
     SELECT * FROM rooms
   `,
-};
+  // Banner-related queries
+CREATE_BANNER: `
+INSERT INTO slide_banner (image_link, link_url)
+VALUES (?, ?)
+`,
+GET_BANNERS: `
+SELECT * FROM slide_banner
+`,
+DELETE_BANNER: `
+DELETE FROM slide_banner WHERE S_No = ?
+`,
+GET_ALL_CASH_PAYMENT: `
+SELECT 
+  payments.*,
+  bookings.*,
+  users.email,
+  users.fullName
+FROM payments
+INNER JOIN bookings ON payments.order_id = bookings.order_id
+INNER JOIN users ON payments.user_id = users.id
+WHERE payments.status = 'pending'
+  AND payments.order_id LIKE 'cash%'
+`,
+UPDATE_CASH_PAYMENT_STATUS: `
+UPDATE payments
+SET status = ?
+WHERE order_id = ?
+`,
+UPDATE_CASH_BOOKING_STATUS: `
+UPDATE bookings
+SET status = ?
+WHERE order_id = ?
+`
+
+  }; 
 
 export const SPORTS_QUERIES = {
   SELECT_SPORTS_DETAILS: `
@@ -319,6 +353,7 @@ LEFT JOIN facilities f ON b.facility_id = f.id
 WHERE DATE(b.booked_date) = ? AND b.facility_id = ? AND b.status IN ('confirmed', 'active', 'booked')
 ORDER BY b.start_time ASC;
 `,
+
 
 
 };

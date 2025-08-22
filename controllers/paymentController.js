@@ -546,6 +546,9 @@ export const createCashPayment = async (req, res) => {
             });
         }
 
+        const sgDate = new Date(
+            new Date().toLocaleString("en-US", { timeZone: "Asia/Singapore" })
+          );
         // Generate a unique order ID for cash payment
         const orderId = `cash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -555,7 +558,7 @@ export const createCashPayment = async (req, res) => {
                 _id,
                 'pending', // status is pending
                 amount,
-                new Date(),
+                sgDate,
                 orderId,
                 orderId
             ]);
@@ -564,7 +567,7 @@ export const createCashPayment = async (req, res) => {
             await executeQuery2(SQL_QUERIES.CREATE_BOOKING_RECORD_FOR_CASH, [
                 _id,
                 orderId,
-                new Date(),
+                sgDate,
                 'pending', // booking status is pending
                 facility_id,
                 date,
@@ -606,6 +609,109 @@ export const createCashPayment = async (req, res) => {
 
     } catch (error) {
         logger.error(`Error in cash payment creation: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+};
+
+
+export const createCashPaymentRooms = async (req, res) => {
+    try {
+        const { _id } = req.user;
+        
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        const { amount, room_id, date, room_count, adult_count, children_count, total_nights, start_date, end_date, currency } = req.body;
+
+        // Validate required fields
+        if (!amount || amount <= 0) {
+            logger.error('Invalid amount provided for room cash payment');
+            return res.status(400).json({
+                success: false,
+                message: 'Valid amount is required for room cash payment'
+            });
+        }
+
+        if (!room_id || !date) {
+            logger.error('Missing required fields for room cash payment');
+            return res.status(400).json({
+                success: false,
+                message: 'room_id and date are required'
+            });
+        }
+
+        // Generate a unique order ID for room cash payment
+        const orderId = `room_cash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        try {
+            // Insert payment record for room cash payment with pending status
+            await executeQuery2(SQL_QUERIES.CREATE_ROOM_PAYMENT_RECORD, [
+                orderId,
+                orderId, // payment_intent_id same as order_id for cash
+                _id,
+                room_id,
+                amount,
+                currency || 'SGD',
+                room_count,
+                adult_count,
+                children_count,
+                total_nights,
+                date,
+                start_date,
+                end_date,
+                'pending',
+                null // no client_secret for cash payments
+            ]);
+
+            logger.info(`Room cash payment record created successfully for user: ${_id}, order ID: ${orderId}`);
+
+            res.status(200).json({
+                success: true,
+                message: 'Room cash payment record created successfully',
+                booking: {
+                    orderId: orderId,
+                    userId: _id,
+                    roomId: room_id,
+                    date: date,
+                    startDate: start_date,
+                    endDate: end_date,
+                    roomCount: room_count,
+                    adultCount: adult_count,
+                    childrenCount: children_count,
+                    totalNights: total_nights,
+                    amount: amount,
+                    currency: currency || 'SGD',
+                    status: 'pending',
+                    paymentStatus: 'pending'
+                }
+            });
+
+        } catch (dbError) {
+            logger.error(`Database error creating room cash payment: ${dbError.message}`);
+            console.error('Database error:', dbError);
+            
+            // Clean up any partial records
+            try {
+                await executeQuery2('DELETE FROM payments_rooms WHERE payment_intent_id = ?', [orderId]);
+            } catch (cleanupError) {
+                logger.error(`Error during cleanup: ${cleanupError.message}`);
+            }
+            
+            throw dbError;
+        }
+
+    } catch (error) {
+        logger.error(`Error in room cash payment creation: ${error.message}`);
         console.error('Full error:', error);
         res.status(500).json({
             success: false,
@@ -740,11 +846,6 @@ export const checkExpiredCashPayments = async () => {
     throw error;
   }
 };
-
-
-
-
-
 
 export const handleRoomWebhook = async (req, res) => {
     const sig = req.headers['stripe-signature'];
@@ -913,3 +1014,90 @@ export const getCashPaymentExpiryTime = async (req, res) => {
     });
   }
 };
+
+
+export const getAllCashPayment = async (req, res) => {
+    try {
+     
+      const cashPayment = await executeQuery2(SQL_QUERIES.GET_ALL_CASH_PAYMENT); 
+    
+      // THERE BOOKINGTIMEJSON IS IN STRING FORMAT SO WE NEED TO PARSE IT AND REMOVE THE BOOKINGTIMEJSON FROM THE OBJECT 
+   
+
+       
+
+      const cashPaymentWithBookingTime = cashPayment.map(payment => { 
+        return {
+          ...payment,
+          bookingTime: JSON.parse(payment.boking_time_json),
+          boking_time_json: undefined,
+          start_time:undefined,
+          end_time:undefined,
+          password:undefined,
+        } 
+        
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Cash payment fetched successfully",
+        cashPayment: cashPaymentWithBookingTime
+      });
+         
+    } catch (error) {
+        logger.error(`Error in getting all cash payment: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
+        });
+    }
+}
+
+export const ApproveCashPayments = async (req, res) => {
+    try {
+
+        // its a put method so we need to get the orderId from the body
+        const { orderId } = req.body;
+        console.log("orderId", orderId);
+        
+
+        // Update payment status to completed
+        const payment =  await executeQuery2(SQL_QUERIES.UPDATE_CASH_PAYMENT_STATUS, [
+            'completed', 
+            orderId
+        ]);
+
+        // Update booking status to completed
+        const booking = await executeQuery2(SQL_QUERIES.UPDATE_CASH_BOOKING_STATUS, [
+            'confirmed',
+            orderId
+        ]);
+
+        //if not d
+        if (!payment || !booking) {
+            return res.status(400).json({
+                success: false,
+                message: "Payment or booking not found"
+            });
+        }
+
+        console.log("payment", payment);
+        console.log("booking", booking);
+
+ 
+        res.status(200).json({
+            success: true,
+            message: "Cash payment approved successfully",
+            orderId: orderId
+        });
+
+    } catch (error) {
+        logger.error(`Error in approving cash payment: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR 
+        });
+    }
+}
