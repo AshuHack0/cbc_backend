@@ -74,3 +74,51 @@ export const deleteBannerController = async (req, res) => {
         });
     }
 }
+
+
+// update banner
+export const updateBannerController = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { link } = req.body;
+        
+        // Get existing banner data first
+        const existingBanner = await executeQuery2(SQL_QUERIES.GET_BANNER_BY_ID, [id]);
+        if (!existingBanner || existingBanner.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "Banner not found"
+            });
+        }
+        
+        let imageUrl = existingBanner[0].image_link;
+        let linkUrl = existingBanner[0].link_url;
+        
+        // Update image if new one is uploaded
+        if (req.file) {
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            imageUrl = `${baseUrl}/uploads/banners/${req.file.filename}`;
+        }
+        
+        // Update link if provided in request body
+        if (link !== undefined && link !== null && link !== '') {
+            linkUrl = link;
+        }
+        
+        // Update with both image and link (preserving unchanged values)
+        const banner = await executeQuery2(SQL_QUERIES.UPDATE_BANNER, [imageUrl, linkUrl, id]);
+        
+        res.status(200).json({
+            success: true,
+            message: "Banner updated successfully",
+            banner: banner
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error updating banner",
+            error: error.message
+        });
+    }
+}

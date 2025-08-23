@@ -165,12 +165,16 @@ export const getBookDetailsController = async (req, res) => {
             quantity: 1,
         });
 
-        if (membershipType === "Family") {
+        // Add processing fee only for monthly Family memberships
+        if (membershipType === "Family" && packageType === "monthly") {
             line_items.push({
                 price: STRIPE_PRICES.processingFees[220],
                 quantity: 1,
             });
+        }
 
+        // Add additional family member charges for both monthly and yearly Family memberships
+        if (membershipType === "Family") {
             const additionalMembers = familyMembers ? familyMembers.length : 0;
             if (additionalMembers > 0) {
                 const unitAmount = packageType === "monthly" ? 55 * 100 : 660 * 100;

@@ -1,5 +1,5 @@
 import express from 'express';
-import { createPaymentIntent, handleWebhook, handleRoomWebhook, getPaymentStatus, createFreeBooking, createCashPayment, createCashPaymentRooms, createPaymentIntentForRoom, getPaymentStatusRooms, getAllCashPayment, ApproveCashPayments } from '../controllers/paymentController.js';
+import { createPaymentIntent, handleWebhook, handleRoomWebhook, getPaymentStatus, createFreeBooking, createCashPayment, createCashPaymentRooms, createPaymentIntentForRoom, getPaymentStatusRooms, getAllCashPayment, ApproveCashPayments, getAllPayment } from '../controllers/paymentController.js';
 import { isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -36,5 +36,6 @@ router.get('/all-cash-payment', getAllCashPayment);
 
 router.post('/approve-cash-payment', ApproveCashPayments);
 
+router.get('/get-all-payment', getAllPayment);
 
 export default router; 

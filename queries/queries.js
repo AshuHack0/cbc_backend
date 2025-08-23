@@ -138,20 +138,55 @@ VALUES (?, ?)
 GET_BANNERS: `
 SELECT * FROM slide_banner
 `,
+GET_BANNER_BY_ID: `
+SELECT * FROM slide_banner WHERE S_No = ?
+`,
 DELETE_BANNER: `
 DELETE FROM slide_banner WHERE S_No = ?
 `,
+UPDATE_BANNER: `
+UPDATE slide_banner
+SET image_link = ?, link_url = ?
+WHERE S_No = ?
+`,
 GET_ALL_CASH_PAYMENT: `
 SELECT 
-  payments.*,
-  bookings.*,
-  users.email,
-  users.fullName
-FROM payments
-INNER JOIN bookings ON payments.order_id = bookings.order_id
-INNER JOIN users ON payments.user_id = users.id
-WHERE payments.status = 'pending'
-  AND payments.order_id LIKE 'cash%'
+   p.*,
+   b.boking_time_json,
+   b.facility_id,
+   b.booked_date,
+   b.booked_slot,
+   b.booking_date,
+   f.*,
+    (
+      SELECT JSON_OBJECT('email', u.email)
+      FROM users u
+      WHERE u.id = p.user_id
+   ) AS user_details
+FROM payments p
+  INNER JOIN bookings b ON p.order_id = b.order_id
+  INNER JOIN facilities f ON b.facility_id = f.id 
+WHERE 
+p.status = 'pending'
+AND p.order_id LIKE 'cash%'
+`,
+GET_ALL_PAYMENT: `
+SELECT 
+   p.*,
+   b.boking_time_json,
+   b.facility_id,
+   b.booked_date,
+   b.booked_slot,
+   b.booking_date,
+   f.*,
+    (
+      SELECT JSON_OBJECT('email', u.email)
+      FROM users u
+      WHERE u.id = p.user_id
+   ) AS user_details
+FROM payments p
+  INNER JOIN bookings b ON p.order_id = b.order_id
+  INNER JOIN facilities f ON b.facility_id = f.id 
 `,
 UPDATE_CASH_PAYMENT_STATUS: `
 UPDATE payments
@@ -162,6 +197,9 @@ UPDATE_CASH_BOOKING_STATUS: `
 UPDATE bookings
 SET status = ?
 WHERE order_id = ?
+`,
+GET_ALL_ROOMS_PAYMENT: `
+SELECT * FROM payments_rooms
 `
 
   }; 

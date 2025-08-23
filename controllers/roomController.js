@@ -17,3 +17,21 @@ export const getAllRoomsController = async (req, res) => {
         });
     }
 };
+
+export const getAllRoomsPaymentController = async (req, res) => {
+    try {
+        const rooms = await executeQuery2(SQL_QUERIES.GET_ALL_ROOMS_PAYMENT); 
+        res.status(200).json({
+            success: true,
+            message: "Rooms payment fetched successfully",
+            rooms: rooms
+        });
+    }
+    catch (error) {
+        res.status(500).json({
+            success: false,
+            message: "Error fetching rooms payment",
+            error: error.message
+        });
+    }
+}   

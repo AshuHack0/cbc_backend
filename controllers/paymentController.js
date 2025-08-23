@@ -1020,11 +1020,7 @@ export const getAllCashPayment = async (req, res) => {
     try {
      
       const cashPayment = await executeQuery2(SQL_QUERIES.GET_ALL_CASH_PAYMENT); 
-    
-      // THERE BOOKINGTIMEJSON IS IN STRING FORMAT SO WE NEED TO PARSE IT AND REMOVE THE BOOKINGTIMEJSON FROM THE OBJECT 
-   
-
-       
+     
 
       const cashPaymentWithBookingTime = cashPayment.map(payment => { 
         return {
@@ -1033,7 +1029,8 @@ export const getAllCashPayment = async (req, res) => {
           boking_time_json: undefined,
           start_time:undefined,
           end_time:undefined,
-          password:undefined,
+          availability_status:undefined,
+          unit:undefined,
         } 
         
       });
@@ -1098,6 +1095,32 @@ export const ApproveCashPayments = async (req, res) => {
         res.status(500).json({
             success: false,
             message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR 
+        });
+    }
+}
+
+export const getAllPayment = async (req, res) => {
+    try {
+        const payment = await executeQuery2(SQL_QUERIES.GET_ALL_PAYMENT); 
+
+        const paymentWithBookingTime = payment.map(payment => {
+            return {
+                ...payment,
+                bookingTime: JSON.parse(payment.boking_time_json),
+                boking_time_json: undefined,
+            }
+        });
+        res.status(200).json({
+            success: true,
+            message: "Payment fetched successfully",
+            payment: paymentWithBookingTime
+        });
+    } catch (error) {
+        logger.error(`Error in getting all payment: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message || RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR
         });
     }
 }

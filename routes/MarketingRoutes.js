@@ -1,5 +1,5 @@
 import express from 'express';
-import { createBannerController, deleteBannerController, getBannersController } from '../controllers/BannerController.js';
+import { createBannerController, deleteBannerController, getBannersController, updateBannerController } from '../controllers/BannerController.js';
 import upload from '../middleware/uploadMiddleware.js';
 
 const router = express.Router();
@@ -13,6 +13,8 @@ const router = express.Router();
 // now for the banner 
 router.post('/create-banner', upload.single('image'), createBannerController);
 router.get('/get-banners', getBannersController);
-router.delete('/delete-banner/:id', deleteBannerController);
+router.delete('/delete-banner/:id', deleteBannerController); 
+router.put('/update-banner/:id', upload.single('image'), updateBannerController);
+
 
 export default router;
