@@ -5,6 +5,7 @@ import { LOG_MESSAGES, RESPONSE_MESSAGES } from "../constants/constants.js";
 import { SQL_QUERIES } from "../queries/queries.js";
 import JWT from "jsonwebtoken";
 import transporter from "../config/email.js";
+import bcrypt from "bcryptjs";
 dotenv.config();
 
  
@@ -527,3 +528,364 @@ export function generateOtpEmail(user, otp) {
   `;
 }
 
+
+export const CreateAdminUser = async (req, res) => {
+  try {
+    const { email, password, name, role, accessLevel, permissions } = req.body;
+    
+    // Validate required fields
+    if (!email || !password || !name || !role) {
+      return res.status(400).json({
+        success: false,
+        message: "Email, password, name, and role are required",
+      });
+    }
+
+
+    console.log( role);
+
+    // Check if admin already exists
+    const existingAdmin = await executeQuery2(SQL_QUERIES.SELECT_ADMIN_BY_EMAIL, [email]);
+    if (existingAdmin && existingAdmin.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: RESPONSE_MESSAGES.USER_ALREADY_EXISTS,
+      });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    console.log('Creating admin user with data:', {
+      email,
+      name,
+      role,
+      accessLevel,
+      permissions,
+      isVerified: 1
+    });
+
+    // Create new admin user
+    const result = await executeQuery2(SQL_QUERIES.CREATE_ADMIN_USER, [
+      email,
+      hashedPassword,
+      name,
+      role,
+      accessLevel || 'medium',
+      JSON.stringify(permissions || []),
+      1 // is_verified
+    ]);
+
+    if (result && result.insertId) {
+      // Fetch the created admin
+      const newAdmin = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_ID, [result.insertId]);
+      
+      logger.info(`Admin user created successfully: ${email}`);
+      res.status(201).json({
+        success: true,
+        message: "Admin user created successfully",
+        user: newAdmin[0]
+      });
+    } else {
+      throw new Error("Failed to create admin user");
+    }
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_CREATE_ADMIN_USER(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+      
+    });
+  }
+}
+
+export const GetAllAdminUsers = async (req, res) => {
+  try {
+    const admins = await executeQuery2(SQL_QUERIES.SELECT_ALL_ADMIN_USERS);
+    
+    if (admins) {
+      // Transform admins to match frontend structure
+      const transformedAdmins = admins.map(admin => ({
+        id: admin.id,
+        name: admin.name,
+        email: admin.email,
+        role: admin.role,
+        accessLevel: admin.access_level,
+        status: admin.is_verified ? 'active' : 'inactive',
+        lastLogin: admin.last_login || admin.updated_at,
+        permissions: admin.permissions ? JSON.parse(admin.permissions) : [],
+        createdAt: admin.created_at,
+        isSuperAdmin: admin.role === 'super_admin'
+      }));
+
+      res.status(200).json({
+        success: true,
+        users: transformedAdmins,
+        total: transformedAdmins.length
+      });
+    } else {
+      res.status(200).json({
+        success: true,
+        users: [],
+        total: 0
+      });
+    }
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_GET_ALL_ADMIN_USERS(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+} 
+
+export const DeleteAdminUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    // Check if admin exists
+    const existingAdmin = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_ID, [id]);
+    if (!existingAdmin || existingAdmin.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin user not found",
+      });
+    }
+
+    // Prevent deletion of super admin
+    if (existingAdmin[0].role === 'super_admin') {
+      return res.status(403).json({
+        success: false,
+        message: "Cannot delete super admin user",
+      });
+    }
+
+    // Delete the admin
+    const result = await executeQuery2(SQL_QUERIES.DELETE_ADMIN_USER, [id]);
+    
+    if (result && result.affectedRows > 0) {
+      logger.info(`Admin user deleted successfully: ID ${id}`);
+      res.status(200).json({
+        success: true,
+        message: "Admin user deleted successfully",
+      });
+    } else {
+      throw new Error("Failed to delete admin user");
+    }
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_DELETE_ADMIN_USER(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+}
+
+export const UpdateAdminUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, password, name, role, accessLevel, permissions, status } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    // Check if admin exists
+    const existingAdmin = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_ID, [id]);
+    if (!existingAdmin || existingAdmin.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin user not found",
+      });
+    }
+
+    // Check if email is being changed and if it already exists
+    if (email && email !== existingAdmin[0].email) {
+      const emailCheck = await executeQuery2(SQL_QUERIES.SELECT_ADMIN_BY_EMAIL, [email]);
+      if (emailCheck && emailCheck.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Email already exists",
+        });
+      }
+    }
+
+    // Hash password if provided
+    const hashedPassword = password ? await bcrypt.hash(password, 10) : existingAdmin[0].password;
+
+    // Update admin
+    const result = await executeQuery2(SQL_QUERIES.UPDATE_ADMIN_USER, [
+      email || existingAdmin[0].email,
+      hashedPassword,
+      name || existingAdmin[0].name,
+      role || existingAdmin[0].role,
+      accessLevel || existingAdmin[0].access_level,
+      permissions ? JSON.stringify(permissions) : existingAdmin[0].permissions,
+      status === 'active' ? 1 : 0,
+      id
+    ]);
+
+    if (result && result.affectedRows > 0) {
+      // Fetch updated admin
+      const updatedAdmin = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_ID, [id]);
+      
+      logger.info(`Admin user updated successfully: ID ${id}`);
+      res.status(200).json({
+        success: true,
+        message: "Admin user updated successfully",
+        user: updatedAdmin[0]
+      });
+    } else {
+      throw new Error("Failed to update admin user");
+    }
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_UPDATE_ADMIN_USER(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+}
+
+export const GetAdminUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    const admin = await executeQuery2(SQL_QUERIES.SELECT_USER_BY_ID, [id]);
+    
+    if (!admin || admin.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Admin user not found",
+      });
+    }
+
+    // Transform admin to match frontend structure
+    const transformedAdmin = {
+      id: admin[0].id,
+      name: admin[0].name,
+      email: admin[0].email,
+      role: admin[0].role,
+      accessLevel: admin[0].access_level,
+      status: admin[0].is_verified ? 'active' : 'inactive',
+      lastLogin: admin[0].last_login || admin[0].updated_at,
+      permissions: admin[0].permissions ? JSON.parse(admin[0].permissions) : [],
+      createdAt: admin[0].created_at,
+      isSuperAdmin: admin[0].role === 'super_admin'
+    };
+
+    res.status(200).json({
+      success: true,
+      user: transformedAdmin
+    });
+
+  } catch (error) {
+    logger.error(LOG_MESSAGES.ERROR_IN_GET_ADMIN_USER(error));
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+}
+
+export const adminLoginController = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and password are required",
+      });
+    }
+
+    // Check if admin exists
+    const admin = await executeQuery2(SQL_QUERIES.SELECT_ADMIN_BY_EMAIL, [email]);
+    if (!admin || admin.length === 0) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    // Verify password using bcrypt
+    const isPasswordValid = await bcrypt.compare(password, admin[0].password);
+    if (!isPasswordValid) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials",
+      });
+    }
+
+    // Check if admin is verified
+    if (!admin[0].is_verified) {
+      return res.status(403).json({
+        success: false,
+        message: "Admin account is not verified",
+      });
+    }
+
+    // Update last login
+    await executeQuery2(SQL_QUERIES.UPDATE_ADMIN_LAST_LOGIN, [admin[0].id]);
+
+    // Generate JWT token
+    const token = JWT.sign(
+      { 
+        _id: admin[0].id, 
+        email: admin[0].email, 
+        role: admin[0].role,
+        accessLevel: admin[0].access_level 
+      }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "24h" }
+    );
+
+    // Transform admin data for response
+    const adminData = {
+      id: admin[0].id,
+      name: admin[0].name,
+      email: admin[0].email,
+      role: admin[0].role,
+      accessLevel: admin[0].access_level,
+      permissions: admin[0].permissions ? JSON.parse(admin[0].permissions) : [],
+      isSuperAdmin: admin[0].role === 'super_admin'
+    };
+
+    logger.info(`Admin login successful: ${email}`);
+    res.status(200).json({
+      success: true,
+      message: "Admin login successful",
+      admin: adminData,
+      token,
+    });
+
+  } catch (error) {
+    logger.error(`Error in adminLoginController: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+};

@@ -23,6 +23,15 @@ export const LOG_MESSAGES = {
     ERROR_IN_GET_BOOK_DETAILS: (error) => `Error in getBookDetailsController: ${error.message}`,
     ERROR_IN_RESEND_OTP: (error) => `Error in resendOtpController: ${error.message}`, 
     ERROR_IN_LOGIN: (error) => `Error in loginController: ${error.message}`, 
+    ERROR_IN_CREATE_ADMIN_USER: (error) => `Error in CreateAdminUser: ${error.message}`,
+    ERROR_IN_GET_ALL_ADMIN_USERS: (error) => `Error in GetAllAdminUsers: ${error.message}`,
+    ERROR_IN_DELETE_ADMIN_USER: (error) => `Error in DeleteAdminUser: ${error.message}`,
+    ERROR_IN_UPDATE_ADMIN_USER: (error) => `Error in UpdateAdminUser: ${error.message}`,
+    ERROR_IN_GET_ADMIN_USER: (error) => `Error in GetAdminUserById: ${error.message}`,
+    ERROR_IN_CREATE_EVENT: (error) => `Error in createEventController: ${error.message}`,
+    ERROR_IN_GET_EVENTS: (error) => `Error in getEventsController: ${error.message}`,
+    ERROR_IN_UPDATE_EVENT: (error) => `Error in updateEventController: ${error.message}`,
+    ERROR_IN_DELETE_EVENT: (error) => `Error in deleteEventController: ${error.message}`,
 };
 
 // Constants for response messages
@@ -77,4 +86,10 @@ export const RESPONSE_MESSAGES = {
     EMAIL_CREATION_FAILED: "Email creation failed",
     EMAIL_LOGIN_FAILED: "Email login failed", 
     USER_NOT_VERIFIED: "User not verified",
+    EVENT_CREATED_SUCCESS: "Event created successfully",
+    EVENT_RETRIEVED_SUCCESS: "Events retrieved successfully",
+    EVENT_UPDATED_SUCCESS: "Event updated successfully",
+    EVENT_DELETED_SUCCESS: "Event deleted successfully",
+    EVENT_NOT_FOUND: "Event not found",
+    EVENT_VALIDATION_ERROR: "Event validation error",
 };

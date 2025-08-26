@@ -1101,7 +1101,17 @@ export const ApproveCashPayments = async (req, res) => {
 
 export const getAllPayment = async (req, res) => {
     try {
-        const payment = await executeQuery2(SQL_QUERIES.GET_ALL_PAYMENT); 
+        // Get pagination parameters from query
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const offset = (page - 1) * limit;
+
+        // Get total count for pagination metadata
+        const countResult = await executeQuery2(SQL_QUERIES.GET_PAYMENT_COUNT);
+        const total = countResult[0]?.total || 0;
+
+        // Get paginated payments
+        const payment = await executeQuery2(SQL_QUERIES.GET_ALL_PAYMENT_PAGINATED, [limit, offset]); 
 
         const paymentWithBookingTime = payment.map(payment => {
             return {
@@ -1110,10 +1120,26 @@ export const getAllPayment = async (req, res) => {
                 boking_time_json: undefined,
             }
         });
+
+        // Calculate pagination metadata
+        const totalPages = Math.ceil(total / limit);
+        const hasNextPage = page < totalPages;
+        const hasPrevPage = page > 1;
+
         res.status(200).json({
             success: true,
             message: "Payment fetched successfully",
-            payment: paymentWithBookingTime
+            payment: paymentWithBookingTime,
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalItems: total,
+                itemsPerPage: limit,
+                hasNextPage,
+                hasPrevPage,
+                nextPage: hasNextPage ? page + 1 : null,
+                prevPage: hasPrevPage ? page - 1 : null
+            }
         });
     } catch (error) {
         logger.error(`Error in getting all payment: ${error.message}`);

@@ -188,6 +188,32 @@ FROM payments p
   INNER JOIN bookings b ON p.order_id = b.order_id
   INNER JOIN facilities f ON b.facility_id = f.id 
 `,
+GET_ALL_PAYMENT_PAGINATED: `
+SELECT 
+   p.*,
+   b.boking_time_json,
+   b.facility_id,
+   b.booked_date,
+   b.booked_slot,
+   b.booking_date,
+   f.*,
+    (
+      SELECT JSON_OBJECT('email', u.email)
+      FROM users u
+      WHERE u.id = p.user_id
+   ) AS user_details
+FROM payments p
+  INNER JOIN bookings b ON p.order_id = b.order_id
+  INNER JOIN facilities f ON b.facility_id = f.id 
+ORDER BY p.payment_date DESC
+LIMIT ? OFFSET ?
+`,
+GET_PAYMENT_COUNT: `
+SELECT COUNT(*) as total
+FROM payments p
+  INNER JOIN bookings b ON p.order_id = b.order_id
+  INNER JOIN facilities f ON b.facility_id = f.id 
+`,
 UPDATE_CASH_PAYMENT_STATUS: `
 UPDATE payments
 SET status = ?
@@ -200,7 +226,54 @@ WHERE order_id = ?
 `,
 GET_ALL_ROOMS_PAYMENT: `
 SELECT * FROM payments_rooms
-`
+`,
+
+  // Admin user management queries
+  CREATE_ADMIN_USER: `
+    INSERT INTO admin (email, password, name, role, access_level, permissions, is_verified)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `,
+  SELECT_ALL_ADMIN_USERS: `
+    SELECT id, email, password, name, role, access_level, permissions, is_verified, created_at, updated_at, last_login
+    FROM admin 
+    ORDER BY created_at DESC
+  `,
+  SELECT_USER_BY_ID: `
+    SELECT id, email, password, name, role, access_level, permissions, is_verified, created_at, updated_at, last_login
+    FROM admin 
+    WHERE id = ?
+  `,
+  SELECT_ADMIN_BY_EMAIL: `
+    SELECT id, email, password, name, role, access_level, permissions, is_verified, created_at, updated_at, last_login
+    FROM admin 
+    WHERE email = ?
+  `,
+  UPDATE_ADMIN_USER: `
+    UPDATE admin 
+    SET email = ?, password = ?, name = ?, role = ?, access_level = ?, permissions = ?, is_verified = ?, updated_at = NOW()
+    WHERE id = ?
+  `,
+  DELETE_ADMIN_USER: `
+    DELETE FROM admin 
+    WHERE id = ? AND role != 'super_admin'
+  `,
+  UPDATE_ADMIN_LAST_LOGIN: `
+    UPDATE admin 
+    SET last_login = NOW() 
+    WHERE id = ?
+  `,
+  SELECT_ADMINS_BY_ROLE: `
+    SELECT id, email, password, name, role, access_level, permissions, is_verified, created_at, updated_at, last_login
+    FROM admin 
+    WHERE role = ?
+    ORDER BY created_at DESC
+  `,
+  SELECT_ADMINS_BY_ACCESS_LEVEL: `
+    SELECT id, email, password, name, role, access_level, permissions, is_verified, created_at, updated_at, last_login
+    FROM admin 
+    WHERE access_level = ?
+    ORDER BY created_at DESC
+  `
 
   }; 
 
