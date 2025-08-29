@@ -1,5 +1,5 @@
 import express from 'express';
-import {  adminLoginController, CreateAdminUser, DeleteAdminUser, GetAllAdminUsers, loginController, resendOtpController, resetPasswordController, sendOtpController, UpdateAdminUser, verifyOtpController } from '../controllers/authController.js';
+import {  adminLoginController, CreateAdminUser, DeleteAdminUser, GetAllAdminUsers, getUserDetailsController, loginController, resendOtpController, resetPasswordController, sendOtpController, UpdateAdminUser, updateUserDetailsController, verifyOtpController } from '../controllers/authController.js';
 import { isAuthenticated } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -14,6 +14,12 @@ router.post('/send-otp', sendOtpController);
 
 // Verify OTP route
 router.post('/verify-otp', verifyOtpController);
+
+
+router.get('/get-user-details', isAuthenticated, getUserDetailsController); 
+
+router.post('/update-user-details', isAuthenticated, updateUserDetailsController
+); 
 
  // resend otp route
  router.post('/resend-otp', resendOtpController);

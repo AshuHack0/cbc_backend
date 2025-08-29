@@ -85,6 +85,86 @@ export const sendOtpController = async (req, res) => {
   }
 };
 
+export const getUserDetailsController = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const user = await executeQuery2(`SELECT * FROM users WHERE id = ?`, [_id]);
+    res.status(200).json({
+      success: true,
+      message: 'User details retrieved successfully',
+      user,
+    });
+  } catch (error) {
+    logger.error('Error in getUserDetailsController' + error);
+    res.status(500).json({
+      success: false,
+      message: RESPONSE_MESSAGES.INTERNAL_SERVER_ERROR,
+    });
+  }
+};
+
+export const updateUserDetailsController = async (req, res) => {
+  try {
+    const { _id } = req.user;
+    const { fullName, email, phone, occupation, maritalStatus, dateOfBirth } = req.body;
+    
+    // Get existing user data first
+    const existingUser = await executeQuery2(SQL_QUERIES.SELECT_USER_DETAILS, [_id]);
+    if (!existingUser || existingUser.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+    
+    let profilePictureUrl = existingUser[0].profile_picture;
+    
+    // Update profile picture if new one is uploaded
+    if (req.file) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      profilePictureUrl = `${baseUrl}/uploads/profiles/${req.file.filename}`;
+    }
+    
+    // Remove profile picture if requested
+    if (req.body.removeProfilePicture === 'true') {
+      profilePictureUrl = null;
+    }
+    
+    // Update user details
+    const result = await executeQuery2(SQL_QUERIES.UPDATE_USER, [
+      fullName || existingUser[0].full_name,
+      email || existingUser[0].email,
+      phone || existingUser[0].phone,
+      occupation || existingUser[0].occupation,
+      maritalStatus || existingUser[0].marital_status,
+      dateOfBirth || existingUser[0].date_of_birth,
+      profilePictureUrl,
+      _id
+    ]);
+    
+    res.status(200).json({
+      success: true,
+      message: "User details updated successfully",
+      user: {
+        fullName: fullName || existingUser[0].full_name,
+        email: email || existingUser[0].email,
+        phone: phone || existingUser[0].phone,
+        occupation: occupation || existingUser[0].occupation,
+        maritalStatus: maritalStatus || existingUser[0].marital_status,
+        dateOfBirth: dateOfBirth || existingUser[0].date_of_birth,
+        profilePicture: profilePictureUrl
+      }
+    });
+  } catch (error) {
+    logger.error('Error in updateUserDetailsController' + error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating user details",
+      error: error.message
+    });
+  }
+};
+
 export const verifyOtpController = async (req, res) => {
   try {
     const { email, otp } = req.body;

@@ -360,12 +360,17 @@ export const getAllFacilitiesController = async (req, res) => {
 
 export const createFacilityController = async (req, res) => {
   try {
-    const { name, description, image, price, capacity } = req.body; 
-    const facility = await executeQuery2(`INSERT INTO facilities (name, description, image, price, capacity) VALUES (?, ?, ?, ?, ?)`, [name, description, image, price, capacity]);
+    const { name, capacity, unit, is_free_access, availability_status, img_src } = req.body; 
+    
+    let boolen = availability_status === "available" ? true : false;
+
+    
+    const facility = await executeQuery2(`INSERT INTO facilities (name, capacity, unit, is_free_acces, availability_status, img_src) VALUES ( ?, ?, ?, ?, ?, ?)`, [name, capacity, unit, is_free_access, boolen, img_src]);
     res.status(200).json({
       success: true,
       message: "Facility created successfully",
-      facility: facility
+      facility: facility , 
+      facilityId: facility.insertId
     });
   } catch (error) {
     logger.error("Error in createFacilityController:::", error);
@@ -378,9 +383,117 @@ export const createFacilityController = async (req, res) => {
 };
 
 
+export const createOperationHoursController = async (req, res) => {
+  try {
+    const { facility_id, operation_hours } = req.body; 
+  
+
+    // Validate input
+    if (!facility_id || !operation_hours || !Array.isArray(operation_hours)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input: facility_id and operation_hours array are required"
+      });
+    }
+
+    // Start transaction
+    await executeQuery2('START TRANSACTION');
+
+    try {
+      // Insert each operation hour
+      for (const hour of operation_hours) {
+        await executeQuery2(
+          `INSERT INTO operating_hours (facility_id, day_type_id, open_time, close_time) 
+           VALUES (?, ?, ?, ?)`,
+          [hour.facility_id, hour.day_type_id, hour.open_time, hour.close_time]
+        );
+      }
+
+      // Commit transaction
+      await executeQuery2('COMMIT');
+
+      res.status(200).json({
+        success: true,
+        message: "Operation hours created successfully",
+        data: {
+          facility_id,
+          operation_hours
+        }
+      });
+    } catch (insertError) {
+      // Rollback on error
+      await executeQuery2('ROLLBACK');
+      throw insertError;
+    }
+
+  } catch (error) {
+    logger.error("Error in createOperationHoursController:::", error);
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while creating operation hours"
+    });
+  }
+}
+
+
+export const pricingRulesController = async (req, res) => {
+  try {
+    const { facility_id, pricing_rules } = req.body;
+    console.log("pricingRulesController", req.body);
+
+    // Validate input
+    if (!facility_id || !pricing_rules || !Array.isArray(pricing_rules)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid input: facility_id and pricing_rules array are required"
+      });
+    }
+
+    // Start transaction
+    await executeQuery2('START TRANSACTION');
+
+    try {
+      // Insert each pricing rule
+      for (const rule of pricing_rules) {
+        await executeQuery2(
+          `INSERT INTO pricing_rules (facility_id, day_type_id, price, start_time, end_time, unit) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [facility_id, rule.day_type_id, rule.price, rule.start_time, rule.end_time, 'hour']
+        );
+      }
+
+      // Commit transaction
+      await executeQuery2('COMMIT');
+
+      res.status(200).json({
+        success: true,
+        message: "Pricing rules created successfully",
+        data: {
+          facility_id,
+          pricing_rules
+        }
+      });
+    } catch (insertError) {
+      // Rollback on error
+      await executeQuery2('ROLLBACK');
+      throw insertError;
+    }
+
+  } catch (error) {
+    logger.error("Error in pricingRulesController:::", error);
+    console.log(error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error while creating pricing rules"
+    });
+  }
+}
+
 export const getOperatingHoursController = async (req, res) => {
   try {
-    const { facilityId } = req.query;
+    const { facilityId } = req.query; 
+    console.log(req.body)
     const operatingHours = await executeQuery2(`SELECT * FROM operating_hours WHERE facility_id = ?`, [facilityId]);
     res.status(200).json({
       success: true,

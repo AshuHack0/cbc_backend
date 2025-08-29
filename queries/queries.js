@@ -127,6 +127,11 @@ export const SQL_QUERIES = {
     SET password = ?, is_verified = ?
     WHERE id = ?
   `,
+  UPDATE_USER: `
+    UPDATE users
+    SET full_name = ?, email = ?, phone = ?, occupation = ?, marital_status = ?, Dob = ?, profile_picture = ?
+    WHERE id = ?
+  `,
   SELECT_ALL_ROOMS: `
     SELECT * FROM rooms
   `,

@@ -1,6 +1,6 @@
 import express from 'express';
 import { isAuthenticated } from '../middleware/authMiddleware.js';
-import { createDayTypeController, createFacilityController, createPricingRule, deleteDayTypeController, eachFacilityWiseSportsDetailsController, getAllFacilitiesController, getDayTypesController, getOperatingHoursController, getOperationHours, getPricingRules, getSportDetailsFacilityWiseController, getSportsController, getSportsDetailsDayWiseAndFacilityWiseController } from '../controllers/sportsController.js';
+import { createDayTypeController, createFacilityController, createOperationHoursController, createPricingRule, deleteDayTypeController, eachFacilityWiseSportsDetailsController, getAllFacilitiesController, getDayTypesController, getOperatingHoursController, getOperationHours, getPricingRules, getSportDetailsFacilityWiseController, getSportsController, getSportsDetailsDayWiseAndFacilityWiseController, pricingRulesController } from '../controllers/sportsController.js';
 
 const router = express.Router(); 
 
@@ -9,7 +9,13 @@ router.get('/sports-details-facility-wise', isAuthenticated, getSportDetailsFaci
 router.get('/sports-details-day-wise-and-facility-wise', isAuthenticated, getSportsDetailsDayWiseAndFacilityWiseController); 
 router.get('/each-facility-wise-sports-details', isAuthenticated, eachFacilityWiseSportsDetailsController); 
 router.get('/get-all-facilities', isAuthenticated, getAllFacilitiesController);
-router.post('/create-facility', isAuthenticated, createFacilityController);
+router.post('/create-facility', isAuthenticated, createFacilityController); 
+
+router.post('/create-operation-hours', isAuthenticated, createOperationHoursController
+    
+); 
+
+router.post('/create-pricing-rules', isAuthenticated, pricingRulesController);
 
 router.get('/get-operating-hours', isAuthenticated, getOperatingHoursController);
 

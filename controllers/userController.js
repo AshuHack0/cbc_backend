@@ -5,6 +5,12 @@ import { generateCustomUUID } from '../utils/uuid.js';
 import { SQL_QUERIES, BOOKING_QUERIES , SPORTS_QUERIES} from '../queries/queries.js';
 import STRIPE_PRICES from '../stripePriceMap.js';
 import stripe from '../config/stripe.js';
+
+// Utility function to check if a user was created manually
+export const isManualUser = (stripeCustomerId, stripeSessionId) => {
+    if (!stripeCustomerId || !stripeSessionId) return false;
+    return stripeCustomerId.startsWith('manual_cus_') || stripeSessionId.startsWith('manual_ses_');
+};
 import transporter from '../config/email.js';
 export const getUserController = async (req, res) => {
     const { _id } = req.user;
@@ -89,7 +95,269 @@ export const getBookDetailsController = async (req, res) => {
   };
   
 
-  export const createCheckoutSession = async (req, res) => {
+  export const createUserManually = async (req, res) => {
+    try {
+        // Validate request body
+        if (!req.body) {
+            logger.error('Request body is missing');
+            return res.status(400).json({
+                success: false,
+                message: 'Request body is required'
+            });
+        }
+
+        const {
+            fullName,
+            email,
+            phone,
+            occupation,
+            maritalStatus,
+            membershipType,
+            packageType,
+            packageLabel,
+            packagePrice,
+            familyMembers,
+            interests,
+            profilePicture,
+            dateOfBirth,
+            paymentStatus = 'pending'
+        } = req.body;
+
+        // Validate required fields
+        if (!fullName || !email || !phone || !membershipType || !packageType) {
+            logger.error('Missing required fields for user creation');
+            return res.status(400).json({
+                success: false,
+                message: 'fullName, email, phone, membershipType, and packageType are required'
+            });
+        }
+
+        // Check if user already exists
+        const existingUser = await executeQuery2(
+            'SELECT * FROM Member WHERE email = ? OR phone = ?',
+            [email, phone]
+        );
+
+        if (existingUser && existingUser.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'User with this email or phone number already exists'
+            });
+        }
+
+        // 1. Generate UUID and Insert into Member
+        const memberId = generateCustomUUID();
+        console.log("memberId", memberId)
+        // Generate manual identifiers for tracking
+        const manualStripeCustomerId = `manual_cus_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const manualStripeSessionId = `manual_ses_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        const memberResult = await executeQuery2(
+            `INSERT INTO users (
+                idd, fullName, email, phone, occupation, maritalStatus, 
+                membershipType, packageType, packageLabel, packagePrice, 
+                interests, profile_picture, Dob, paymentStatus, stripeCustomerId, stripeSessionId
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                memberId, fullName, email, phone, occupation, maritalStatus,
+                membershipType, packageType, packageLabel, packagePrice,
+                JSON.stringify(interests), profilePicture, dateOfBirth, paymentStatus,
+                manualStripeCustomerId, manualStripeSessionId
+            ]
+        );
+
+        logger.info(`User created manually with ID: ${memberId}`);
+
+        // 2. Insert family members if provided
+        if (familyMembers && familyMembers.length > 0) {
+            for (const member of familyMembers) {
+                const { fullName, role, phone, email, occupation, maritalStatus } = member;
+                await executeQuery2(
+                    `INSERT INTO FamilyMember (memberId, fullName, role, phone, email, occupation, maritalStatus)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    [memberId, fullName, role, phone, email, occupation, maritalStatus]
+                );
+            }
+        }
+
+        // 3. Get the created user with all details
+        const createdUser = await executeQuery2(
+            'SELECT * FROM users WHERE id = ?',
+            [memberId]
+        );
+
+        // 4. Get family members if any
+        let userFamilyMembers = [];
+        if (familyMembers && familyMembers.length > 0) {
+            userFamilyMembers = await executeQuery2(
+                'SELECT * FROM FamilyMember WHERE memberId = ?',
+                [memberId]
+            );
+        }
+
+        logger.info(`User created successfully: ${memberId}`);
+
+        res.status(201).json({ 
+            success: true,
+            message: "User created successfully",
+            user: {
+                ...createdUser[0],
+                familyMembers: userFamilyMembers,
+                isManualUser: true,
+                manualIdentifiers: {
+                    stripeCustomerId: manualStripeCustomerId,
+                    stripeSessionId: manualStripeSessionId
+                }
+            }
+        });
+
+    } catch (error) {
+        logger.error(`Error in createUserManually: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({ 
+            success: false,
+            error: "Server error",
+            errorMessage: error.message
+        });
+    }
+};
+
+// Get all manual users
+export const getManualUsers = async (req, res) => {
+    try {
+        const manualUsers = await executeQuery2(
+            `SELECT * FROM users 
+             WHERE stripeCustomerId LIKE 'manual_cus_%' 
+             OR stripeSessionId LIKE 'manual_ses_%'
+             ORDER BY created_at DESC`
+        );
+
+        logger.info(`Retrieved ${manualUsers.length} manual users`);
+
+        res.status(200).json({
+            success: true,
+            message: "Manual users retrieved successfully",
+            count: manualUsers.length,
+            users: manualUsers.map(user => ({
+                ...user,
+                isManualUser: true,
+                manualIdentifiers: {
+                    stripeCustomerId: user.stripeCustomerId,
+                    stripeSessionId: user.stripeSessionId
+                }
+            }))
+        });
+
+    } catch (error) {
+        logger.error(`Error in getManualUsers: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            error: "Server error",
+            errorMessage: error.message
+        });
+    }
+};
+
+ 
+// Update the payment status and generate membership code & password
+export const updatePaymentStatus = async (req, res) => {   
+    try {
+        const { userId } = req.params;
+        const { paymentStatus } = req.body;
+        
+        // Validate required fields
+        if (!userId || !paymentStatus) {
+            return res.status(400).json({
+                success: false,
+                message: 'userId and paymentStatus are required'
+            });
+        }
+
+        // Check if user exists
+        const existingUser = await executeQuery2(
+            'SELECT * FROM users WHERE idd = ?',
+            [userId]
+        );
+
+        if (!existingUser || existingUser.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found'
+            });
+        }
+
+        // Generate membership code and password
+        const prefix = "VTM";
+        const membershipCode = await generateUniqueCode(prefix);
+        const password = Math.random().toString(36).substr(2, 8) + Math.random().toString(36).substr(2, 6).toUpperCase();
+        
+        // Update user with membership code, password, and payment status
+        const result = await executeQuery2(
+            `UPDATE users SET 
+                membershipCode = ?, 
+                password = ?, 
+                paymentStatus = ?
+             WHERE idd = ?`, 
+            [membershipCode, password, paymentStatus, userId]
+        );
+
+        logger.info(`Payment status updated for user: ${userId} to ${paymentStatus}, membership code: ${membershipCode}`);
+
+        res.status(200).json({
+            success: true,
+            message: "Payment status updated successfully",
+            data: {
+                membershipCode,
+                password,
+                paymentStatus,
+                userId
+            }
+        });
+    } catch (error) {
+        logger.error(`Error in updatePaymentStatus: ${error.message}`);
+        console.error('Full error:', error);
+        res.status(500).json({
+            success: false,
+            error: "Server error",
+            errorMessage: error.message
+        });
+    }
+};
+
+
+/// end of the updated the code 
+//*******************************************************************************************************
+// create facilities 
+
+export const createFacility = async (req, res) => {
+    try {
+        const data = req.body;
+        console.log("data", data)
+        // const facility = await executeQuery2(
+        //     `INSERT INTO facilities (name, description, image, type, capacity, unit, pricing) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        //     [data.name, data.description, data.image, data.type, data.capacity, data.unit, data.pricing]
+        // );
+        res.status(200).json({
+            success: true,
+            message: "Facility created successfully",
+            data: data
+        });
+    } catch (error) {
+        logger.error("Error in createFacility:::", error);
+        res.status(500).json({
+            success: false,
+            error: "Server error",
+            errorMessage: error.message
+        });
+    }
+}
+
+
+
+
+
+export const createCheckoutSession = async (req, res) => {
     try {
         // Validate request body
         if (!req.body) {
@@ -805,3 +1073,4 @@ export const getAllFacilites = async (req, res) => {
         res.status(500).json({ success: false, message: 'Failed to fetch facilites' });
     }
 };
+
